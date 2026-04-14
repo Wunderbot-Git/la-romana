@@ -1,0 +1,39 @@
+{
+    "name": "@ryder-cup/api",
+    "version": "0.1.0",
+    "main": "dist/index.js",
+    "scripts": {
+        "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+        "build": "tsc",
+        "test": "vitest run --no-threads",
+        "test:watch": "vitest",
+        "migrate": "ts-node src/scripts/migrate.ts",
+        "migrate:prod": "node dist/scripts/migrate.js",
+        "seed": "ts-node scripts/seed-tournament.ts"
+    },
+    "dependencies": {
+        "@fastify/helmet": "^11.1.1",
+        "@fastify/jwt": "^8.0.0",
+        "@fastify/rate-limit": "^9.1.0",
+        "@ryder-cup/shared": "*",
+        "bcrypt": "^6.0.0",
+
+        "dotenv": "^17.2.3",
+        "fastify": "^4.24.3",
+        "pg": "^8.17.2",
+        "postgres-migrations": "^5.3.0",
+        "uuid": "^13.0.0"
+    },
+    "devDependencies": {
+        "@types/bcrypt": "^6.0.0",
+
+        "@types/node": "^20.0.0",
+        "@types/pg": "^8.16.0",
+        "@types/uuid": "^10.0.0",
+        "supertest": "^6.3.3",
+        "ts-node-dev": "^2.0.0",
+        "typescript": "^5.0.0",
+        "vitest": "^0.34.0",
+        "xlsx": "^0.18.5"
+    }
+}

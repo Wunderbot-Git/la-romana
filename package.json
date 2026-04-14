@@ -1,0 +1,20 @@
+{
+  "name": "ryder-cup-par00",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @ryder-cup/api",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "test:watch": "npm run test:watch --workspaces"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^0.34.0",
+    "ts-node": "^10.9.1",
+    "nodemon": "^3.0.1"
+  }
+}

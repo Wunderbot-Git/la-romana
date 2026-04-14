@@ -1,0 +1,37 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+COPY packages/api/package.json packages/api/
+COPY packages/shared/package.json packages/shared/
+
+RUN npm ci
+
+COPY packages/api packages/api/
+COPY packages/shared packages/shared/
+
+RUN npm run build -w @ryder-cup/shared
+RUN npm run build -w @ryder-cup/api
+
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=8080
+
+COPY package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages/api/node_modules ./packages/api/node_modules
+COPY --from=builder /app/packages/api/node_modules ./packages/api/node_modules
+
+COPY --from=builder /app/packages/api/src ./packages/api/src
+COPY --from=builder /app/packages/api/dist ./packages/api/dist
+COPY --from=builder /app/packages/api/package.json ./packages/api/package.json
+COPY --from=builder /app/packages/api/tsconfig.json ./packages/api/tsconfig.json
+COPY --from=builder /app/packages/api/migrations ./packages/api/migrations
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
+
+EXPOSE 8080
+WORKDIR /app/packages/api
+CMD ["node", "dist/src/index.js"]

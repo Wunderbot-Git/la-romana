@@ -1,0 +1,9 @@
+.git
+node_modules
+packages/api/node_modules
+packages/web/node_modules
+packages/shared/node_modules
+packages/web/.next
+packages/api/dist
+.claude
+*.log

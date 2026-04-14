@@ -1,0 +1,65 @@
+# cloudbuild.yaml
+steps:
+  # 1. Build the API image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/ryder-cup-api', '-f', 'Dockerfile.api', '.']
+
+  # 2. Build the Web image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '-t', 'gcr.io/$PROJECT_ID/ryder-cup-web', 
+      '--build-arg', 'NEXT_PUBLIC_API_URL=$_API_URL',
+      '-f', 'Dockerfile.web', 
+      '.'
+    ]
+
+  # 3. Push the API image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/ryder-cup-api']
+
+  # 4. Push the Web image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/ryder-cup-web']
+
+  # 5. Run Database Migrations using the built API container
+  #- name: 'gcr.io/$PROJECT_ID/ryder-cup-api'
+  #  entrypoint: 'sh'
+  #  args: ['-c', 'cd /app/packages/api && npx ts-node src/scripts/migrate.ts']
+  #  env:
+  #    - 'DATABASE_URL=$_DATABASE_URL'
+
+  # 6. Deploy API to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'ryder-cup-api'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/ryder-cup-api'
+      - '--region'
+      - 'us-central1'
+      - '--set-env-vars'
+      - 'DATABASE_URL=$_DATABASE_URL,JWT_SECRET=$_JWT_SECRET,NODE_ENV=production'
+      - '--allow-unauthenticated'
+
+  # 7. Deploy Web to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'ryder-cup-web'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/ryder-cup-web'
+      - '--region'
+      - 'us-central1'
+      - '--allow-unauthenticated'
+
+images:
+  - 'gcr.io/$PROJECT_ID/ryder-cup-api'
+  - 'gcr.io/$PROJECT_ID/ryder-cup-web'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
