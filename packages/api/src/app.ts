@@ -4,13 +4,11 @@ import { authRoutes } from './routes/auth';
 import { eventRoutes } from './routes/events';
 import { courseRoutes } from './routes/courses';
 import { overrideRoutes } from './routes/overrides';
-import { scrambleRoutes } from './routes/scramble';
 import { playerRoutes } from './routes/players';
 import { flightRoutes } from './routes/flights';
 import scoreRoutes from './routes/scores';
 import leaderboardRoutes from './routes/leaderboard';
 import historyRoutes from './routes/history';
-import segmentRoutes from './routes/segments';
 import spectatorRoutes from './routes/spectator';
 import { betRoutes } from './routes/bets';
 import { generalBetRoutes } from './routes/generalBets';
@@ -70,7 +68,7 @@ export const buildApp = (): FastifyInstance => {
 
     // API info endpoint
     app.get('/api', async () => ({
-        name: 'Ryder Cup Par00 API',
+        name: 'La Romana 2026 API',
         version: '0.1.0',
         endpoints: {
             auth: '/auth/signup, /auth/login',
@@ -89,13 +87,11 @@ export const buildApp = (): FastifyInstance => {
     app.register(eventRoutes);
     app.register(courseRoutes);
     app.register(overrideRoutes);
-    app.register(scrambleRoutes);
     app.register(playerRoutes);
     app.register(flightRoutes);
     app.register(scoreRoutes);
     app.register(leaderboardRoutes);
     app.register(historyRoutes);
-    app.register(segmentRoutes);
     app.register(spectatorRoutes);
     app.register(adminRoutes);
     app.register(inviteRoutes);

@@ -7,7 +7,6 @@ export * from './matchStatus';
 export * from './matchResult';
 export * from './singlesMatch';
 export * from './fourballMatch';
-export * from './scrambleMatch';
 export * from './flightMatchCalculator';
 export * from './pointAllocation';
 export * from './momentum';
