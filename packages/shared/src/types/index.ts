@@ -1,9 +1,11 @@
 export type EventState = 'draft' | 'live' | 'completed' | 'closed';
-export type SegmentState = 'open' | 'completed' | 'reopened';
+export type RoundState = 'open' | 'completed' | 'reopened';
+export type SegmentState = RoundState; // alias for legacy call sites; will be removed after Task 6
 export type Team = 'red' | 'blue';
 export type Role = 'organizer' | 'player';
-export type MatchType = 'fourball' | 'singles1' | 'singles2' | 'scramble';
+export type MatchType = 'fourball' | 'singles1' | 'singles2';
 export type MatchStatus = 'up' | 'down' | 'as' | 'dormie' | 'final';
+export type SidePotType = 'longest_drive' | 'closest_to_pin';
 
 export interface UserResponse {
     id: string;
@@ -178,9 +180,9 @@ export interface UpdatePlayerRequest {
 export interface Flight {
     id: string;
     eventId: string;
+    roundId: string;
     flightNumber: number;
-    frontState: 'open' | 'completed' | 'reopened';
-    backState: 'open' | 'completed' | 'reopened';
+    state: RoundState;
     createdAt: string;
 }
 
@@ -190,15 +192,92 @@ export interface FlightWithPlayers extends Flight {
 
 export interface CreateFlightsRequest {
     count: number;
+    roundId: string;
 }
 
 export interface UpdateFlightRequest {
-    frontState?: 'open' | 'completed' | 'reopened';
-    backState?: 'open' | 'completed' | 'reopened';
+    state?: RoundState;
 }
 
 export interface AssignPlayerRequest {
     playerId: string;
     team: 'red' | 'blue';
     position: 1 | 2;
+}
+
+// =============================================
+// La Romana: rounds, netos, side pots
+// =============================================
+
+export interface Round {
+    id: string;
+    eventId: string;
+    roundNumber: number;
+    courseId: string;
+    scheduledAt: string | null;
+    hcpSinglesPct: number;   // 0.80 for La Romana
+    hcpFourballPct: number;
+    state: RoundState;
+    createdAt: string;
+}
+
+export interface CreateRoundRequest {
+    roundNumber: number;
+    courseId: string;
+    scheduledAt?: string | null;
+    hcpSinglesPct?: number;
+    hcpFourballPct?: number;
+}
+
+export interface UpdateRoundRequest {
+    courseId?: string;
+    scheduledAt?: string | null;
+    hcpSinglesPct?: number;
+    hcpFourballPct?: number;
+    state?: RoundState;
+}
+
+export interface NetoPot {
+    id: string;
+    roundId: string;
+    flightId: string;
+    potAmountUsd: number;
+    createdAt: string;
+    winners: NetoPotWinner[];
+}
+
+export interface NetoPotWinner {
+    id: string;
+    potId: string;
+    playerId: string;
+    rank: 1 | 2;
+}
+
+export interface CreateNetoPotRequest {
+    roundId: string;
+    flightId: string;
+    potAmountUsd: number;
+}
+
+export interface SetNetoWinnersRequest {
+    winners: { playerId: string; rank: 1 | 2 }[];
+}
+
+export interface SidePot {
+    id: string;
+    roundId: string;
+    type: SidePotType;
+    holeNumber: number;
+    winningPlayerId: string | null;
+    createdAt: string;
+}
+
+export interface CreateSidePotRequest {
+    roundId: string;
+    type: SidePotType;
+    holeNumber: number;
+}
+
+export interface SetSidePotWinnerRequest {
+    winningPlayerId: string | null;
 }
