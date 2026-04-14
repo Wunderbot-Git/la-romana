@@ -16,7 +16,11 @@
 
 import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load .env from repo root (same as src/config/env.ts)
+dotenv.config({ path: path.join(__dirname, '../../../.env') });
 
 // =============================================
 // Course data (from scorecards Phil shared 2026-04-14)

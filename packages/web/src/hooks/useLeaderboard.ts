@@ -20,6 +20,8 @@ export interface FlightRoundSummary {
     matches: MatchSummary[];
     redPoints: number;
     bluePoints: number;
+    redPointsProjected: number;
+    bluePointsProjected: number;
 }
 
 export interface RoundBreakdown {
@@ -28,12 +30,14 @@ export interface RoundBreakdown {
     courseName: string;
     state: 'open' | 'completed' | 'reopened';
     teamPoints: { red: number; blue: number };
+    teamPointsProjected: { red: number; blue: number };
     flightSummaries: FlightRoundSummary[];
 }
 
 export interface RyderTeamStanding {
     team: 'red' | 'blue';
     matchPointsCumulative: number;
+    matchPointsProjected: number;
     roundsPlayed: number;
 }
 

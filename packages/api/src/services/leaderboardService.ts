@@ -25,7 +25,10 @@ import * as netoRepo from '../repositories/netoPotRepository';
 
 export interface RyderTeamStanding {
     team: 'red' | 'blue';
+    /** Points actually earned from decided matches only. */
     matchPointsCumulative: number;
+    /** Actual + projection for in-progress (to current leader) + 0.5/0.5 for not-started. */
+    matchPointsProjected: number;
     roundsPlayed: number;
 }
 
@@ -45,6 +48,7 @@ export interface RoundBreakdown {
     courseName: string;
     state: 'open' | 'completed' | 'reopened';
     teamPoints: { red: number; blue: number };
+    teamPointsProjected: { red: number; blue: number };
     flightSummaries: FlightRoundSummary[];
 }
 
@@ -55,6 +59,8 @@ export interface FlightRoundSummary {
     matches: MatchSummary[];
     redPoints: number;
     bluePoints: number;
+    redPointsProjected: number;
+    bluePointsProjected: number;
 }
 
 export interface LeaderboardData {
@@ -199,6 +205,37 @@ const loadFlightsForRound = async (roundId: string): Promise<FlightRow[]> => {
 const playerName = (r: RosterEntry): string =>
     [r.firstName, r.lastName].filter(n => n && n !== '-').join(' ').trim() || 'Unknown';
 
+/**
+ * Project a single match to (red, blue) projected points, where each match is worth 1 pt.
+ *   null (not started)      → 0.5 / 0.5
+ *   decided (winner !== null) → 1 / 0 (or 0 / 1)
+ *   halved at final         → 0.5 / 0.5
+ *   in progress, leader red → 1 / 0
+ *   in progress, leader blue → 0 / 1
+ *   in progress, A/S tied   → 0.5 / 0.5
+ */
+const projectMatch = (
+    matchResult:
+        | null
+        | {
+              result: { winner: 'red' | 'blue' | null };
+              finalState: { leader: 'red' | 'blue' | null; holesRemaining: number; isDecided: boolean };
+          }
+): { red: number; blue: number } => {
+    if (!matchResult) return { red: 0.5, blue: 0.5 };
+    const { result, finalState } = matchResult;
+    const isFinished = finalState.isDecided || finalState.holesRemaining === 0;
+    if (isFinished) {
+        if (result.winner === 'red') return { red: 1, blue: 0 };
+        if (result.winner === 'blue') return { red: 0, blue: 1 };
+        return { red: 0.5, blue: 0.5 }; // halved at final
+    }
+    // In progress — project to current leader
+    if (finalState.leader === 'red') return { red: 1, blue: 0 };
+    if (finalState.leader === 'blue') return { red: 0, blue: 1 };
+    return { red: 0.5, blue: 0.5 }; // tied mid-match
+};
+
 /** Build FlightPlayerScores for the match calculator, given a player and their round scores. */
 const buildPlayerScores = (
     player: RosterEntry,
@@ -241,6 +278,8 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
 
         let roundRedPoints = 0;
         let roundBluePoints = 0;
+        let roundRedProjected = 0;
+        let roundBlueProjected = 0;
         const flightSummaries: FlightRoundSummary[] = [];
 
         for (const flight of flights) {
@@ -264,6 +303,9 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
 
             let flightRedPoints = 0;
             let flightBluePoints = 0;
+            // Default projection for a flight with no assigned players: 3 matches × 0.5/0.5 = 1.5/1.5
+            let flightRedProjected = 1.5;
+            let flightBlueProjected = 1.5;
             let matches: MatchSummary[] = [
                 { matchType: 'singles1', winner: null, finalStatus: 'Not Started', redPoints: 0, bluePoints: 0, holesPlayed: 0, isComplete: false },
                 { matchType: 'singles2', winner: null, finalStatus: 'Not Started', redPoints: 0, bluePoints: 0, holesPlayed: 0, isComplete: false },
@@ -280,6 +322,13 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
                 matches = result.summary.matches;
                 flightRedPoints = result.summary.totalRedPoints;
                 flightBluePoints = result.summary.totalBluePoints;
+
+                // Projection: sum per-match projected points for the 3 matches
+                const p1 = projectMatch(result.singles1);
+                const p2 = projectMatch(result.singles2);
+                const p3 = projectMatch(result.fourball);
+                flightRedProjected = p1.red + p2.red + p3.red;
+                flightBlueProjected = p1.blue + p2.blue + p3.blue;
 
                 // Allocate individual Ryder points:
                 //   singles1 winner → Red P1 or Blue P1 (1 pt)
@@ -322,6 +371,8 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
 
             roundRedPoints += flightRedPoints;
             roundBluePoints += flightBluePoints;
+            roundRedProjected += flightRedProjected;
+            roundBlueProjected += flightBlueProjected;
 
             flightSummaries.push({
                 flightId: flight.id,
@@ -330,6 +381,8 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
                 matches,
                 redPoints: flightRedPoints,
                 bluePoints: flightBluePoints,
+                redPointsProjected: flightRedProjected,
+                bluePointsProjected: flightBlueProjected,
             });
         }
 
@@ -383,17 +436,25 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
             courseName: round.courseName,
             state: round.state,
             teamPoints: { red: roundRedPoints, blue: roundBluePoints },
+            teamPointsProjected: { red: roundRedProjected, blue: roundBlueProjected },
             flightSummaries,
         });
 
         netoPotsByRound[round.id] = await netoRepo.listPotsForRound(round.id);
     }
 
-    const ryderStandings: RyderTeamStanding[] = aggregateTeamTotals(teamPointsPerRound).map(t => ({
-        team: t.team,
-        matchPointsCumulative: t.matchPointsCumulative,
-        roundsPlayed: t.roundsPlayed,
-    }));
+    const ryderStandings: RyderTeamStanding[] = aggregateTeamTotals(teamPointsPerRound).map(t => {
+        const projected = roundBreakdowns.reduce(
+            (sum, r) => sum + (t.team === 'red' ? r.teamPointsProjected.red : r.teamPointsProjected.blue),
+            0
+        );
+        return {
+            team: t.team,
+            matchPointsCumulative: t.matchPointsCumulative,
+            matchPointsProjected: projected,
+            roundsPlayed: t.roundsPlayed,
+        };
+    });
 
     const playerTotals = aggregatePlayerTotals(playerPointsPerRound);
     const stablefordStandings: StablefordStanding[] = playerTotals.map(t => {

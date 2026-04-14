@@ -33,6 +33,8 @@ export default function LeaderboardPage() {
     const blueStanding = data.ryderStandings.find(s => s.team === 'blue');
     const redPts = redStanding?.matchPointsCumulative ?? 0;
     const bluePts = blueStanding?.matchPointsCumulative ?? 0;
+    const redProj = redStanding?.matchPointsProjected ?? 0;
+    const blueProj = blueStanding?.matchPointsProjected ?? 0;
 
     return (
         <PullToRefresh onRefresh={refetch}>
@@ -44,13 +46,22 @@ export default function LeaderboardPage() {
                         <div className="flex items-center justify-around">
                             <div className="text-center">
                                 <div className="text-sm font-medium text-team-red">Red</div>
-                                <div className="text-5xl font-bold text-team-red">{redPts}</div>
+                                <div className="text-5xl font-bold text-team-red">{formatPts(redPts)}</div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                    Proj. <span className="font-semibold text-team-red">{formatPts(redProj)}</span>
+                                </div>
                             </div>
                             <div className="text-2xl text-gray-400">vs</div>
                             <div className="text-center">
                                 <div className="text-sm font-medium text-team-blue">Blue</div>
-                                <div className="text-5xl font-bold text-team-blue">{bluePts}</div>
+                                <div className="text-5xl font-bold text-team-blue">{formatPts(bluePts)}</div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                    Proj. <span className="font-semibold text-team-blue">{formatPts(blueProj)}</span>
+                                </div>
                             </div>
+                        </div>
+                        <div className="text-[11px] text-gray-400 text-center mt-3">
+                            Actual = matches decididos · Proyectado = decididos + líder en juego + 0.5/0.5 sin empezar
                         </div>
                     </div>
                 </header>
@@ -100,9 +111,12 @@ function RyderTab({ data }: { data: ReturnType<typeof useLeaderboard>['data'] })
                         </div>
                         <div className="text-right">
                             <div className="text-sm">
-                                <span className="text-team-red font-bold">{round.teamPoints.red}</span>
+                                <span className="text-team-red font-bold">{formatPts(round.teamPoints.red)}</span>
                                 <span className="text-gray-400 mx-1">·</span>
-                                <span className="text-team-blue font-bold">{round.teamPoints.blue}</span>
+                                <span className="text-team-blue font-bold">{formatPts(round.teamPoints.blue)}</span>
+                            </div>
+                            <div className="text-[11px] text-gray-500">
+                                proj. {formatPts(round.teamPointsProjected.red)} · {formatPts(round.teamPointsProjected.blue)}
                             </div>
                             <div className="text-xs text-gray-500 capitalize">{round.state}</div>
                         </div>
@@ -222,6 +236,11 @@ function NetoTab({ data }: { data: ReturnType<typeof useLeaderboard>['data'] }) 
         </div>
     );
 }
+
+const formatPts = (n: number): string => {
+    // Show .5 only when fractional — keep hero nice and clean otherwise
+    return Number.isInteger(n) ? String(n) : n.toFixed(1);
+};
 
 const matchLabel = (t: MatchSummary['matchType']): string => {
     if (t === 'singles1') return 'Singles 1';
