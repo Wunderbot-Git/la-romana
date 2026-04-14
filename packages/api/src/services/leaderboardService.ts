@@ -1,79 +1,220 @@
-// Leaderboard Service - Aggregates tournament scoring data
+// Leaderboard Service — aggregates tournament data across rounds.
+//
+// La Romana returns three parallel leaderboards:
+//   1. Ryder Cup    — team match points (singles + fourball), cumulative
+//   2. Stableford    — individual points, cumulative
+//   3. Neto pots     — daily pot state per round
+//
+// Plus per-flight match detail on demand (via scoreService.getFlightScoreboardData).
 
 import { getPool } from '../config/database';
 import { getFlightHoleScores } from '../repositories/holeScoreRepository';
-import { getFlightScrambleScores } from '../repositories/scrambleScoreRepository';
-import { getCourseByEventId } from '../repositories/courseRepository';
-import { calculateFlightMatches, FlightMatchesOutput, FlightPlayerScores, MatchSummary } from '../scoring/flightMatchCalculator';
-import { calculateTournamentPoints, TournamentPoints } from '../scoring/pointAllocation';
-import { calculateMomentum, MomentumIndicator } from '../scoring/momentum';
-import { formatMatchStatus } from '../scoring/matchStatus';
+import {
+    calculateFlightMatches,
+    FlightPlayerScores,
+    MatchSummary,
+} from '../scoring/flightMatchCalculator';
+import { calculateStablefordRound } from '../scoring/stableford';
+import {
+    aggregatePlayerTotals,
+    aggregateTeamTotals,
+    PlayerRoundPoints,
+    TeamRoundPoints,
+} from '../scoring/tournamentAggregator';
+import * as netoRepo from '../repositories/netoPotRepository';
 
-export interface PlayerScore {
-    playerId: string;
-    playerName: string;
-    hcp: number;
-    scores: (number | null)[];
+export interface RyderTeamStanding {
+    team: 'red' | 'blue';
+    matchPointsCumulative: number;
+    roundsPlayed: number;
 }
 
-export interface Match {
-    id: string;
+export interface StablefordStanding {
+    playerId: string;
+    playerName: string;
+    handicapIndex: number;
+    team: 'red' | 'blue' | null;
+    stablefordCumulative: number;
+    ryderIndividualCumulative: number;
+    roundsPlayed: number;
+}
+
+export interface RoundBreakdown {
+    roundId: string;
+    roundNumber: number;
+    courseName: string;
+    state: 'open' | 'completed' | 'reopened';
+    teamPoints: { red: number; blue: number };
+    flightSummaries: FlightRoundSummary[];
+}
+
+export interface FlightRoundSummary {
     flightId: string;
-    flightName: string;
-    segmentType: 'singles1' | 'singles2' | 'fourball' | 'scramble';
-    status: 'not_started' | 'in_progress' | 'completed';
-    currentHole: number;
-    matchStatus: string; // e.g., "2 UP", "A/S", "1 DN"
-    matchWinner: 'red' | 'blue' | null;
-    currentLeader: 'red' | 'blue' | null;
-    redPlayers: PlayerScore[];
-    bluePlayers: PlayerScore[];
-    matchProgression: string[]; // Status at each hole
-    parValues: number[];
-    hcpValues: number[];
-    scrambleSiValues?: number[];
-    holeWinners: ('red' | 'blue' | null)[];
-    redTeamStrokes?: number[];
-    blueTeamStrokes?: number[];
+    flightNumber: number;
+    state: 'open' | 'completed' | 'reopened';
+    matches: MatchSummary[];
+    redPoints: number;
+    bluePoints: number;
 }
 
 export interface LeaderboardData {
     eventId: string;
     eventName: string;
     updatedAt: string;
-    totalScore: {
-        red: number;
-        blue: number;
-    };
-    projectedScore: {
-        red: number;
-        blue: number;
-    };
-    segmentScores: {
-        singles: { red: number; blue: number };
-        fourball: { red: number; blue: number };
-        scramble: { red: number; blue: number };
-    };
-    momentum: 'red' | 'blue' | 'neutral';
-    matches: Match[];
+    ryderStandings: RyderTeamStanding[];
+    stablefordStandings: StablefordStanding[];
+    rounds: RoundBreakdown[];
+    netoPotsByRound: Record<string, Awaited<ReturnType<typeof netoRepo.listPotsForRound>>>;
 }
 
 // Simple in-memory cache
 const leaderboardCache: Map<string, { data: LeaderboardData; timestamp: number }> = new Map();
-const CACHE_TTL_MS = 10000; // 10 seconds (reduced for dev)
+const CACHE_TTL_MS = 10_000;
 
-/**
- * Invalidate leaderboard cache for an event.
- */
 export const invalidateLeaderboardCache = (eventId: string): void => {
     leaderboardCache.delete(eventId);
 };
 
-/**
- * Get leaderboard for an event.
- */
+interface CourseTeeData {
+    /** tee_id → 18 stroke indexes */
+    siByTee: Record<string, number[]>;
+    /** Par values for the course (from the first tee with 18 holes). */
+    parValues: number[];
+    /** Fallback SI array if player has no tee_id. */
+    defaultSi: number[];
+}
+
+const loadCourseTeeData = async (courseId: string): Promise<CourseTeeData> => {
+    const pool = getPool();
+    const teesRes = await pool.query(
+        `SELECT t.id FROM tees t WHERE t.course_id = $1 ORDER BY t.created_at ASC`,
+        [courseId]
+    );
+    const siByTee: Record<string, number[]> = {};
+    let parValues = Array(18).fill(4);
+    let defaultSi = Array.from({ length: 18 }, (_, i) => i + 1);
+    let setDefaults = false;
+
+    for (const tee of teesRes.rows) {
+        const holesRes = await pool.query(
+            `SELECT hole_number, par, stroke_index FROM holes WHERE tee_id = $1 ORDER BY hole_number ASC`,
+            [tee.id]
+        );
+        if (holesRes.rows.length === 18) {
+            siByTee[tee.id] = holesRes.rows.map((h: any) => h.stroke_index);
+            if (!setDefaults) {
+                parValues = holesRes.rows.map((h: any) => h.par);
+                defaultSi = siByTee[tee.id];
+                setDefaults = true;
+            }
+        }
+    }
+    return { siByTee, parValues, defaultSi };
+};
+
+interface RoundContext {
+    id: string;
+    roundNumber: number;
+    courseId: string;
+    courseName: string;
+    state: 'open' | 'completed' | 'reopened';
+    hcpSinglesPct: number;
+    hcpFourballPct: number;
+}
+
+const loadRounds = async (eventId: string): Promise<RoundContext[]> => {
+    const pool = getPool();
+    const res = await pool.query(
+        `SELECT r.id, r.round_number, r.course_id, c.name AS course_name, r.state,
+                r.hcp_singles_pct, r.hcp_fourball_pct
+         FROM rounds r
+         JOIN courses c ON c.id = r.course_id
+         WHERE r.event_id = $1
+         ORDER BY r.round_number ASC`,
+        [eventId]
+    );
+    return res.rows.map((r: any) => ({
+        id: r.id,
+        roundNumber: r.round_number,
+        courseId: r.course_id,
+        courseName: r.course_name,
+        state: r.state,
+        hcpSinglesPct: Number(r.hcp_singles_pct),
+        hcpFourballPct: Number(r.hcp_fourball_pct),
+    }));
+};
+
+interface RosterEntry {
+    id: string;
+    firstName: string;
+    lastName: string;
+    handicapIndex: number;
+    team: 'red' | 'blue' | null;
+    teeId: string | null;
+    position: number | null;
+    flightId: string | null;
+}
+
+const loadRoster = async (eventId: string): Promise<RosterEntry[]> => {
+    const pool = getPool();
+    const res = await pool.query(
+        `SELECT id, first_name, last_name, handicap_index, team, tee_id, position, flight_id
+         FROM players
+         WHERE event_id = $1`,
+        [eventId]
+    );
+    return res.rows.map((r: any) => ({
+        id: r.id,
+        firstName: r.first_name || '',
+        lastName: r.last_name || '',
+        handicapIndex: Number(r.handicap_index) || 0,
+        team: r.team ?? null,
+        teeId: r.tee_id ?? null,
+        position: r.position ?? null,
+        flightId: r.flight_id ?? null,
+    }));
+};
+
+interface FlightRow {
+    id: string;
+    flightNumber: number;
+    roundId: string;
+    state: 'open' | 'completed' | 'reopened';
+}
+
+const loadFlightsForRound = async (roundId: string): Promise<FlightRow[]> => {
+    const pool = getPool();
+    const res = await pool.query(
+        `SELECT id, flight_number, round_id, state FROM flights WHERE round_id = $1 ORDER BY flight_number ASC`,
+        [roundId]
+    );
+    return res.rows.map((r: any) => ({
+        id: r.id,
+        flightNumber: r.flight_number,
+        roundId: r.round_id,
+        state: r.state,
+    }));
+};
+
+const playerName = (r: RosterEntry): string =>
+    [r.firstName, r.lastName].filter(n => n && n !== '-').join(' ').trim() || 'Unknown';
+
+/** Build FlightPlayerScores for the match calculator, given a player and their round scores. */
+const buildPlayerScores = (
+    player: RosterEntry,
+    scoresByHole: Map<number, number | null>,
+    tee: CourseTeeData
+): FlightPlayerScores => {
+    const grossScores = Array.from({ length: 18 }, (_, i) => scoresByHole.get(i + 1) ?? null);
+    const strokeIndexes = (player.teeId && tee.siByTee[player.teeId]) || tee.defaultSi;
+    return {
+        handicapIndex: player.handicapIndex,
+        grossScores,
+        strokeIndexes,
+    };
+};
+
 export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> => {
-    // Check cache
     const cached = leaderboardCache.get(eventId);
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS) {
         return cached.data;
@@ -81,401 +222,203 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
 
     const pool = getPool();
 
-    // Get event info
     const eventRes = await pool.query('SELECT id, name FROM events WHERE id = $1', [eventId]);
-    if (eventRes.rows.length === 0) {
-        throw new Error('Event not found');
-    }
+    if (eventRes.rows.length === 0) throw new Error('Event not found');
     const event = eventRes.rows[0];
 
-    // Get course info for par/hcp values
-    const course = await getCourseByEventId(eventId);
-    // Default to standard par 72 if no course found, or parsing fails
-    let parValues = Array(18).fill(4);
-    let hcpValues = Array.from({ length: 18 }, (_, i) => i + 1); // 1..18 default
+    const rounds = await loadRounds(eventId);
+    const roster = await loadRoster(eventId);
+    const rosterById = new Map(roster.map(r => [r.id, r]));
 
-    let scrambleSiValues: number[] | null = null;
+    const teamPointsPerRound: TeamRoundPoints[] = [];
+    const playerPointsPerRound: PlayerRoundPoints[] = [];
+    const roundBreakdowns: RoundBreakdown[] = [];
+    const netoPotsByRound: LeaderboardData['netoPotsByRound'] = {};
 
-    if (course && course.tees.length > 0) {
-        // Use the first tee as the reference for scorecard display
-        const tee = course.tees[0];
-        const sortedHoles = [...tee.holes].sort((a, b) => a.holeNumber - b.holeNumber);
+    for (const round of rounds) {
+        const teeData = await loadCourseTeeData(round.courseId);
+        const flights = await loadFlightsForRound(round.id);
 
-        if (sortedHoles.length === 18) {
-            parValues = sortedHoles.map(h => h.par);
-            hcpValues = sortedHoles.map(h => h.strokeIndex);
-        }
+        let roundRedPoints = 0;
+        let roundBluePoints = 0;
+        const flightSummaries: FlightRoundSummary[] = [];
 
-        // Find Mujeres tee SI for scramble (matches scoreService logic)
-        for (const t of course.tees) {
-            if (t.name === 'Mujeres') {
-                const sorted = [...t.holes].sort((a, b) => a.holeNumber - b.holeNumber);
-                if (sorted.length === 18) {
-                    scrambleSiValues = sorted.map(h => h.strokeIndex);
-                }
-                break;
+        for (const flight of flights) {
+            const flightScores = await getFlightHoleScores(flight.id);
+            const scoresByPlayer = new Map<string, Map<number, number | null>>();
+            for (const s of flightScores) {
+                if (s.roundId !== round.id) continue;
+                const byHole = scoresByPlayer.get(s.playerId) ?? new Map();
+                byHole.set(s.holeNumber, s.grossScore);
+                scoresByPlayer.set(s.playerId, byHole);
             }
+
+            // Find the 4 assigned players (2 red + 2 blue) for this flight
+            const flightPlayers = roster.filter(r => r.flightId === flight.id);
+            const redSorted = flightPlayers
+                .filter(p => p.team === 'red')
+                .sort((a, b) => (a.position ?? 99) - (b.position ?? 99));
+            const blueSorted = flightPlayers
+                .filter(p => p.team === 'blue')
+                .sort((a, b) => (a.position ?? 99) - (b.position ?? 99));
+
+            let flightRedPoints = 0;
+            let flightBluePoints = 0;
+            let matches: MatchSummary[] = [
+                { matchType: 'singles1', winner: null, finalStatus: 'Not Started', redPoints: 0, bluePoints: 0, holesPlayed: 0, isComplete: false },
+                { matchType: 'singles2', winner: null, finalStatus: 'Not Started', redPoints: 0, bluePoints: 0, holesPlayed: 0, isComplete: false },
+                { matchType: 'fourball', winner: null, finalStatus: 'Not Started', redPoints: 0, bluePoints: 0, holesPlayed: 0, isComplete: false },
+            ];
+
+            if (redSorted.length >= 2 && blueSorted.length >= 2) {
+                const result = calculateFlightMatches({
+                    redPlayer1: buildPlayerScores(redSorted[0], scoresByPlayer.get(redSorted[0].id) ?? new Map(), teeData),
+                    redPlayer2: buildPlayerScores(redSorted[1], scoresByPlayer.get(redSorted[1].id) ?? new Map(), teeData),
+                    bluePlayer1: buildPlayerScores(blueSorted[0], scoresByPlayer.get(blueSorted[0].id) ?? new Map(), teeData),
+                    bluePlayer2: buildPlayerScores(blueSorted[1], scoresByPlayer.get(blueSorted[1].id) ?? new Map(), teeData),
+                });
+                matches = result.summary.matches;
+                flightRedPoints = result.summary.totalRedPoints;
+                flightBluePoints = result.summary.totalBluePoints;
+
+                // Allocate individual Ryder points:
+                //   singles1 winner → Red P1 or Blue P1 (1 pt)
+                //   singles2 winner → Red P2 or Blue P2 (1 pt)
+                //   fourball winner → 0.5 pt to each player on the winning team (total 1 pt distributed)
+                const addIndiv = (pId: string, pts: number) => {
+                    playerPointsPerRound.push({
+                        playerId: pId,
+                        roundNumber: round.roundNumber,
+                        stablefordPoints: 0, // fill later
+                        ryderIndividualPoints: pts,
+                    });
+                };
+                if (result.singles1?.result.winner === 'red') addIndiv(redSorted[0].id, 1);
+                else if (result.singles1?.result.winner === 'blue') addIndiv(blueSorted[0].id, 1);
+                else if (result.singles1?.result.winner === null && result.singles1) {
+                    // Halved: 0.5 each
+                    addIndiv(redSorted[0].id, 0.5);
+                    addIndiv(blueSorted[0].id, 0.5);
+                }
+                if (result.singles2?.result.winner === 'red') addIndiv(redSorted[1].id, 1);
+                else if (result.singles2?.result.winner === 'blue') addIndiv(blueSorted[1].id, 1);
+                else if (result.singles2?.result.winner === null && result.singles2) {
+                    addIndiv(redSorted[1].id, 0.5);
+                    addIndiv(blueSorted[1].id, 0.5);
+                }
+                if (result.fourball?.result.winner === 'red') {
+                    addIndiv(redSorted[0].id, 0.5);
+                    addIndiv(redSorted[1].id, 0.5);
+                } else if (result.fourball?.result.winner === 'blue') {
+                    addIndiv(blueSorted[0].id, 0.5);
+                    addIndiv(blueSorted[1].id, 0.5);
+                } else if (result.fourball?.result.winner === null && result.fourball) {
+                    addIndiv(redSorted[0].id, 0.25);
+                    addIndiv(redSorted[1].id, 0.25);
+                    addIndiv(blueSorted[0].id, 0.25);
+                    addIndiv(blueSorted[1].id, 0.25);
+                }
+            }
+
+            roundRedPoints += flightRedPoints;
+            roundBluePoints += flightBluePoints;
+
+            flightSummaries.push({
+                flightId: flight.id,
+                flightNumber: flight.flightNumber,
+                state: flight.state,
+                matches,
+                redPoints: flightRedPoints,
+                bluePoints: flightBluePoints,
+            });
         }
-    }
 
-    // Get all flights
-    const flightsRes = await pool.query(
-        `SELECT id, flight_number FROM flights WHERE event_id = $1 ORDER BY flight_number`,
-        [eventId]
-    );
+        // Stableford per-player for this round
+        for (const player of roster) {
+            const playerRoundScores = flights.flatMap(f => {
+                const byHole = new Map<number, number | null>();
+                // Scores already loaded per flight — but we need flight-scoped iteration
+                return []; // placeholder — filled below
+            });
+        }
 
-    const matchResults: Match[] = [];
-
-    // Tracking scores
-    const segmentScores = {
-        singles: { red: 0, blue: 0 },
-        fourball: { red: 0, blue: 0 },
-        scramble: { red: 0, blue: 0 },
-    };
-    let totalRedPoints = 0;
-    let totalBluePoints = 0;
-
-    // Helper to build PlayerScore for frontend
-    const mapPlayerToScore = (p: any, scores: (number | null)[]): PlayerScore => ({
-        playerId: p.id,
-        playerName: p.name,
-        hcp: p.handicapIndex,
-        scores: scores.map(s => (s !== null && s > 0) ? s : null)
-    });
-
-    for (const flight of flightsRes.rows) {
-        // Get players for this flight directly from players table
-        const playersRes = await pool.query(
-            `SELECT id, first_name, last_name, handicap_index, team, position
-             FROM players
-             WHERE flight_id = $1
-             ORDER BY team, position`,
-            [flight.id]
+        // Actually: query all hole_scores for this round in one go for Stableford
+        const allRoundScoresRes = await pool.query(
+            `SELECT player_id, hole_number, gross_score FROM hole_scores WHERE round_id = $1`,
+            [round.id]
         );
-
-        const redPlayers = playersRes.rows
-            .filter((p: any) => p.team === 'red')
-            .map((p: any) => ({
-                id: p.id,
-                name: [p.first_name, p.last_name].filter(n => n && n !== '-').join(' ').trim() || 'Unknown',
-                handicapIndex: parseFloat(p.handicap_index) || 0
-            }));
-
-        const bluePlayers = playersRes.rows
-            .filter((p: any) => p.team === 'blue')
-            .map((p: any) => ({
-                id: p.id,
-                name: [p.first_name, p.last_name].filter(n => n && n !== '-').join(' ').trim() || 'Unknown',
-                handicapIndex: parseFloat(p.handicap_index) || 0
-            }));
-
-        // Get hole scores for this flight
-        const holeScores = await getFlightHoleScores(flight.id);
-        const scrambleScores = await getFlightScrambleScores(flight.id);
-
-        // Build player score data for calculator
-        const buildPlayerScores = (playerId: string, hcp: number, team: 'red' | 'blue'): FlightPlayerScores => {
-            const playerHoles = holeScores.filter(s => s.playerId === playerId);
-            const frontNine = Array(9).fill(null);
-            const backNine = Array(9).fill(null);
-
-            // 1. Fill individual hole scores (Singles / Front 9)
-            for (const score of playerHoles) {
-                if (score.holeNumber <= 9) {
-                    frontNine[score.holeNumber - 1] = score.grossScore;
-                } else {
-                    backNine[score.holeNumber - 10] = score.grossScore;
-                }
-            }
-
-            // 2. Overlay Scramble scores (Back 9 Override)
-            // Scramble scores are stored by team, so we apply them to all players in that team
-            const teamScrambleScores = scrambleScores.filter(s => s.team === team);
-            for (const score of teamScrambleScores) {
-                if (score.holeNumber >= 10 && score.holeNumber <= 18) {
-                    backNine[score.holeNumber - 10] = score.grossScore;
-                }
-            }
-
-            return {
-                handicapIndex: hcp,
-                frontNineGross: frontNine,
-                backNineGross: backNine,
-                strokeIndexes: hcpValues // Use actual course stroke indexes
-            };
-        };
-
-        if (redPlayers.length >= 2 && bluePlayers.length >= 2) {
-            const flightInput = {
-                redPlayer1: buildPlayerScores(redPlayers[0].id, redPlayers[0].handicapIndex, 'red'),
-                redPlayer2: buildPlayerScores(redPlayers[1].id, redPlayers[1].handicapIndex, 'red'),
-                bluePlayer1: buildPlayerScores(bluePlayers[0].id, bluePlayers[0].handicapIndex, 'blue'),
-                bluePlayer2: buildPlayerScores(bluePlayers[1].id, bluePlayers[1].handicapIndex, 'blue'),
-                ...(scrambleSiValues ? { scrambleStrokeIndexes: scrambleSiValues } : {})
-            };
-
-            const result = calculateFlightMatches(flightInput);
-
-            // -- Helper to process a match result --
-            const processMatch = (
-                matchDetails: any,
-                type: 'singles1' | 'singles2' | 'fourball' | 'scramble',
-                idSuffix: string,
-                rPlayers: any[],
-                bPlayers: any[],
-                rScores: (number | null)[][], // array of score arrays corresponding to players
-                bScores: (number | null)[][]
-            ) => {
-                // If no match details (unstarted), create stub
-                const isUnstarted = !matchDetails;
-
-                // Add to totals if started
-                if (matchDetails) {
-                    if (type === 'singles1' || type === 'singles2') {
-                        segmentScores.singles.red += matchDetails.result.redPoints;
-                        segmentScores.singles.blue += matchDetails.result.bluePoints;
-                    } else if (type === 'fourball') {
-                        segmentScores.fourball.red += matchDetails.result.redPoints;
-                        segmentScores.fourball.blue += matchDetails.result.bluePoints;
-                    } else {
-                        segmentScores.scramble.red += matchDetails.result.redPoints;
-                        segmentScores.scramble.blue += matchDetails.result.bluePoints;
-                    }
-                    totalRedPoints += matchDetails.result.redPoints;
-                    totalBluePoints += matchDetails.result.bluePoints;
-                }
-
-                // Create Match Object
-                const prepareScores = (scores: (number | null)[]) => {
-                    if (type === 'scramble') {
-                        return [...Array(9).fill(null), ...scores];
-                    }
-                    return scores;
-                };
-
-                const prepareProgression = (arr: string[]) => {
-                    if (type === 'scramble') {
-                        return [...Array(9).fill(''), ...arr];
-                    }
-                    return arr;
-                };
-
-                const prepareWinners = (arr: any[]) => {
-                    if (type === 'scramble') {
-                        return [...Array(9).fill(null), ...arr];
-                    }
-                    return arr;
-                };
-
-                // Extract Scramble Strokes
-                let redStrokes: number[] | undefined;
-                let blueStrokes: number[] | undefined;
-
-                if (matchDetails && type === 'scramble' && matchDetails.holes) {
-                    const rStrokesRaw = matchDetails.holes.map((h: any) => h.redStrokes ?? 0);
-                    const bStrokesRaw = matchDetails.holes.map((h: any) => h.blueStrokes ?? 0);
-                    redStrokes = [...Array(9).fill(0), ...rStrokesRaw];
-                    blueStrokes = [...Array(9).fill(0), ...bStrokesRaw];
-                }
-
-                const match: Match = {
-                    id: `${flight.id}-${idSuffix}`,
-                    flightId: flight.id,
-                    flightName: `Grupo ${flight.flight_number}`,
-                    segmentType: type,
-                    status: isUnstarted ? 'not_started' : (matchDetails.finalState.isDecided || matchDetails.finalState.holesRemaining === 0 ? 'completed' : (matchDetails.holes.length > 0 ? 'in_progress' : 'not_started')),
-                    currentHole: isUnstarted ? 0 : matchDetails.holes.length,
-                    matchStatus: isUnstarted ? 'Not Started' : matchDetails.result.finalStatus,
-                    matchWinner: isUnstarted ? null : matchDetails.result.winner,
-                    currentLeader: isUnstarted ? null : matchDetails.finalState.leader,
-                    redPlayers: rPlayers.map((p, i) => mapPlayerToScore(p, prepareScores(isUnstarted ? Object.values(rScores[i]).fill(null) : rScores[i]))),
-                    bluePlayers: bPlayers.map((p, i) => mapPlayerToScore(p, prepareScores(isUnstarted ? Object.values(bScores[i]).fill(null) : bScores[i]))),
-                    matchProgression: isUnstarted ? [] : prepareProgression(matchDetails.holes.map((h: any) => formatMatchStatus(h.matchState))),
-                    holeWinners: isUnstarted ? [] : prepareWinners(matchDetails.holes.map((h: any) => h.winner)),
-                    parValues,
-                    hcpValues,
-                    ...(scrambleSiValues ? { scrambleSiValues } : {}),
-                    redTeamStrokes: redStrokes,
-                    blueTeamStrokes: blueStrokes
-                };
-                matchResults.push(match);
-            };
-
-            // Process Singles 1 - Always process
-            processMatch(
-                result.singles1, 'singles1', 's1',
-                [redPlayers[0]], [bluePlayers[0]],
-                [flightInput.redPlayer1.frontNineGross],
-                [flightInput.bluePlayer1.frontNineGross]
-            );
-
-            // Process Singles 2 - Always process
-            processMatch(
-                result.singles2, 'singles2', 's2',
-                [redPlayers[1]], [bluePlayers[1]],
-                [flightInput.redPlayer2.frontNineGross],
-                [flightInput.bluePlayer2.frontNineGross]
-            );
-
-            // Process Fourball - Always process
-            processMatch(
-                result.fourball, 'fourball', 'fb',
-                [redPlayers[0], redPlayers[1]], [bluePlayers[0], bluePlayers[1]],
-                [flightInput.redPlayer1.frontNineGross, flightInput.redPlayer2.frontNineGross],
-                [flightInput.bluePlayer1.frontNineGross, flightInput.bluePlayer2.frontNineGross]
-            );
-
-            // For scramble, provide back nine scores
-            processMatch(
-                result.scramble, 'scramble', 'sc',
-                [redPlayers[0], redPlayers[1]], [bluePlayers[0], bluePlayers[1]],
-                [flightInput.redPlayer1.backNineGross, flightInput.redPlayer2.backNineGross],
-                [flightInput.bluePlayer1.backNineGross, flightInput.bluePlayer2.backNineGross]
-            );
+        const scoresByPlayerForRound = new Map<string, Map<number, number>>();
+        for (const s of allRoundScoresRes.rows) {
+            const byHole = scoresByPlayerForRound.get(s.player_id) ?? new Map();
+            byHole.set(s.hole_number, s.gross_score);
+            scoresByPlayerForRound.set(s.player_id, byHole);
         }
+
+        for (const player of roster) {
+            const byHole = scoresByPlayerForRound.get(player.id);
+            if (!byHole || byHole.size === 0) continue; // didn't play this round
+            const grossScores = Array.from({ length: 18 }, (_, i) => byHole.get(i + 1) ?? null);
+            const si = (player.teeId && teeData.siByTee[player.teeId]) || teeData.defaultSi;
+            const stbl = calculateStablefordRound({
+                grossScores,
+                pars: teeData.parValues,
+                strokeIndexes: si,
+                handicapIndex: player.handicapIndex,
+                allowance: round.hcpSinglesPct,
+            });
+            playerPointsPerRound.push({
+                playerId: player.id,
+                roundNumber: round.roundNumber,
+                stablefordPoints: stbl.totalPoints,
+                ryderIndividualPoints: 0, // already recorded from match calculator above
+            });
+        }
+
+        teamPointsPerRound.push({ team: 'red', roundNumber: round.roundNumber, matchPoints: roundRedPoints });
+        teamPointsPerRound.push({ team: 'blue', roundNumber: round.roundNumber, matchPoints: roundBluePoints });
+
+        roundBreakdowns.push({
+            roundId: round.id,
+            roundNumber: round.roundNumber,
+            courseName: round.courseName,
+            state: round.state,
+            teamPoints: { red: roundRedPoints, blue: roundBluePoints },
+            flightSummaries,
+        });
+
+        netoPotsByRound[round.id] = await netoRepo.listPotsForRound(round.id);
     }
 
-    // Momentum calc (placeholder for now, reusing simple logic if available or just based on recent)
-    // We can infer momentum from last few matches in matchResults
-    // ... logic ...
-    const momentum: 'red' | 'blue' | 'neutral' = 'neutral';
+    const ryderStandings: RyderTeamStanding[] = aggregateTeamTotals(teamPointsPerRound).map(t => ({
+        team: t.team,
+        matchPointsCumulative: t.matchPointsCumulative,
+        roundsPlayed: t.roundsPlayed,
+    }));
 
-    // Calculate Projected Score (Live Score + 0.5 for unstarted matches)
-    let projectedRed = totalRedPoints;
-    let projectedBlue = totalBluePoints;
-
-    matchResults.forEach(m => {
-        const pts = m.segmentType === 'scramble' ? 2 : 1;
-
-        if (m.status === 'not_started') {
-            projectedRed += (pts / 2);
-            projectedBlue += (pts / 2);
-        } else if (m.status === 'in_progress') {
-            // Project based on current leader
-            if (m.currentLeader === 'red') {
-                projectedRed += pts;
-            } else if (m.currentLeader === 'blue') {
-                projectedBlue += pts;
-            } else {
-                // A/S or undefined - split the projected point
-                projectedRed += (pts / 2);
-                projectedBlue += (pts / 2);
-            }
-        }
+    const playerTotals = aggregatePlayerTotals(playerPointsPerRound);
+    const stablefordStandings: StablefordStanding[] = playerTotals.map(t => {
+        const player = rosterById.get(t.playerId);
+        return {
+            playerId: t.playerId,
+            playerName: player ? playerName(player) : 'Unknown',
+            handicapIndex: player?.handicapIndex ?? 0,
+            team: player?.team ?? null,
+            stablefordCumulative: t.stablefordCumulative,
+            ryderIndividualCumulative: t.ryderIndividualCumulative,
+            roundsPlayed: t.roundsPlayed,
+        };
     });
 
     const data: LeaderboardData = {
         eventId,
         eventName: event.name,
         updatedAt: new Date().toISOString(),
-        totalScore: {
-            red: totalRedPoints,
-            blue: totalBluePoints
-        },
-        projectedScore: {
-            red: projectedRed,
-            blue: projectedBlue
-        },
-        segmentScores,
-        momentum,
-        matches: matchResults
+        ryderStandings,
+        stablefordStandings,
+        rounds: roundBreakdowns,
+        netoPotsByRound,
     };
 
-    // Cache result
     leaderboardCache.set(eventId, { data, timestamp: Date.now() });
-
     return data;
-};
-
-/**
- * Get detailed match history for a flight.
- * This function handles just one flight's calculation (reused logic could be abstracted but keeping distinct for now)
- */
-export const getFlightMatchHistory = async (flightId: string): Promise<FlightMatchesOutput | null> => {
-    // ... (Keep existing implementation or remove if not used by any route. 
-    // For now I will strictly replace the file with the working `getLeaderboard`, 
-    // but I should keep `getFlightMatchHistory` if other parts depend on it.)
-    // To save space/complexity in this rewrite, I'll copy the existing logic for `getFlightMatchHistory` back in.
-
-    const pool = getPool();
-    // Get flight info
-    const flightRes = await pool.query(
-        `SELECT f.id, f.flight_number, f.event_id FROM flights f WHERE f.id = $1`,
-        [flightId]
-    );
-    if (flightRes.rows.length === 0) {
-        throw new Error('Flight not found');
-    }
-    // Get players directly from players table
-    const playersRes = await pool.query(
-        `SELECT id, first_name, last_name, handicap_index, team, position
-         FROM players
-         WHERE flight_id = $1
-         ORDER BY team, position`,
-        [flightId]
-    );
-    const redPlayers = playersRes.rows.filter((p: any) => p.team === 'red');
-    const bluePlayers = playersRes.rows.filter((p: any) => p.team === 'blue');
-    if (redPlayers.length < 2 || bluePlayers.length < 2) {
-        return null;
-    }
-    const holeScores = await getFlightHoleScores(flightId);
-
-    // Get course info for stroke indexes
-    const eventId = flightRes.rows[0].event_id;
-    const course = await getCourseByEventId(eventId);
-    let hcpValues = Array.from({ length: 18 }, (_, i) => i + 1); // Default 1..18
-    let scrambleSiValues: number[] | null = null;
-    if (course && course.tees.length > 0) {
-        const sortedHoles = [...course.tees[0].holes].sort((a, b) => a.holeNumber - b.holeNumber);
-        if (sortedHoles.length === 18) {
-            hcpValues = sortedHoles.map(h => h.strokeIndex);
-        }
-        for (const t of course.tees) {
-            if (t.name === 'Mujeres') {
-                const sorted = [...t.holes].sort((a, b) => a.holeNumber - b.holeNumber);
-                if (sorted.length === 18) {
-                    scrambleSiValues = sorted.map(h => h.strokeIndex);
-                }
-                break;
-            }
-        }
-    }
-
-    // Get scramble scores
-    const scrambleScores = await getFlightScrambleScores(flightId);
-
-    const buildPlayerScores = (player: any): FlightPlayerScores => {
-        const playerHoles = holeScores.filter(s => s.playerId === player.id);
-        const frontNine = Array(9).fill(null);
-        const backNine = Array(9).fill(null);
-        for (const score of playerHoles) {
-            if (score.holeNumber <= 9) {
-                frontNine[score.holeNumber - 1] = score.grossScore;
-            } else {
-                backNine[score.holeNumber - 10] = score.grossScore;
-            }
-        }
-        // Overlay scramble scores (team-based back 9)
-        const teamScrambleScores = scrambleScores.filter(s => s.team === player.team);
-        for (const score of teamScrambleScores) {
-            if (score.holeNumber >= 10 && score.holeNumber <= 18) {
-                backNine[score.holeNumber - 10] = score.grossScore;
-            }
-        }
-        return {
-            handicapIndex: parseFloat(player.handicap_index) || 0,
-            frontNineGross: frontNine,
-            backNineGross: backNine,
-            strokeIndexes: hcpValues // Use actual course stroke indexes
-        };
-    };
-    const flightInput = {
-        redPlayer1: buildPlayerScores(redPlayers[0]),
-        redPlayer2: buildPlayerScores(redPlayers[1]),
-        bluePlayer1: buildPlayerScores(bluePlayers[0]),
-        bluePlayer2: buildPlayerScores(bluePlayers[1]),
-        ...(scrambleSiValues ? { scrambleStrokeIndexes: scrambleSiValues } : {})
-    };
-    return calculateFlightMatches(flightInput);
 };

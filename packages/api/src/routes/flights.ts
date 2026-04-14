@@ -27,13 +27,25 @@ export const flightRoutes = async (fastify: FastifyInstance) => {
         }
     );
 
-    // Get Flights (Public)
+    // Get Flights (Public) — all flights across all rounds for the event
     fastify.get<{ Params: { eventId: string }; Reply: FlightWithPlayers[] | { error: string } }>(
         '/events/:eventId/flights',
         async (request, reply) => {
             const { eventId } = request.params;
             try {
                 return await flightService.getEventFlightsDetails(eventId);
+            } catch (err: any) {
+                return reply.status(500).send({ error: err.message });
+            }
+        }
+    );
+
+    // Get Flights for a specific round (Public)
+    fastify.get<{ Params: { eventId: string; roundId: string }; Reply: FlightWithPlayers[] | { error: string } }>(
+        '/events/:eventId/rounds/:roundId/flights',
+        async (request, reply) => {
+            try {
+                return await flightService.getRoundFlightsDetails(request.params.roundId);
             } catch (err: any) {
                 return reply.status(500).send({ error: err.message });
             }

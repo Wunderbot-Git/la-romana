@@ -1,27 +1,35 @@
 import { getPool } from '../config/database';
-import { Flight } from '@ryder-cup/shared';
+import { Flight, RoundState } from '@ryder-cup/shared';
 
-// Uses flights table:
-// id, event_id, flight_number, front_state, back_state, created_at
+const mapRow = (row: any): Flight => ({
+    id: row.id,
+    eventId: row.event_id,
+    roundId: row.round_id,
+    flightNumber: row.flight_number,
+    state: row.state as RoundState,
+    createdAt: row.created_at.toISOString(),
+});
 
-export const createFlight = async (eventId: string, flightNumber: number): Promise<Flight> => {
+export const createFlight = async (
+    eventId: string,
+    roundId: string,
+    flightNumber: number
+): Promise<Flight> => {
     const pool = getPool();
     const res = await pool.query(
-        `INSERT INTO flights (event_id, flight_number)
-         VALUES ($1, $2)
-         RETURNING *`,
-        [eventId, flightNumber]
+        `INSERT INTO flights (event_id, round_id, flight_number) VALUES ($1, $2, $3) RETURNING *`,
+        [eventId, roundId, flightNumber]
     );
+    return mapRow(res.rows[0]);
+};
 
-    const row = res.rows[0];
-    return {
-        id: row.id,
-        eventId: row.event_id,
-        flightNumber: row.flight_number,
-        frontState: row.front_state,
-        backState: row.back_state,
-        createdAt: row.created_at.toISOString()
-    };
+export const getFlightsByRoundId = async (roundId: string): Promise<Flight[]> => {
+    const pool = getPool();
+    const res = await pool.query(
+        'SELECT * FROM flights WHERE round_id = $1 ORDER BY flight_number ASC',
+        [roundId]
+    );
+    return res.rows.map(mapRow);
 };
 
 export const getFlightsByEventId = async (eventId: string): Promise<Flight[]> => {
@@ -30,29 +38,23 @@ export const getFlightsByEventId = async (eventId: string): Promise<Flight[]> =>
         'SELECT * FROM flights WHERE event_id = $1 ORDER BY flight_number ASC',
         [eventId]
     );
-
-    return res.rows.map(row => ({
-        id: row.id,
-        eventId: row.event_id,
-        flightNumber: row.flight_number,
-        frontState: row.front_state,
-        backState: row.back_state,
-        createdAt: row.created_at.toISOString()
-    }));
+    return res.rows.map(mapRow);
 };
 
 export const getFlightById = async (flightId: string): Promise<Flight | null> => {
     const pool = getPool();
     const res = await pool.query('SELECT * FROM flights WHERE id = $1', [flightId]);
-    if (res.rows.length === 0) return null;
+    return res.rows[0] ? mapRow(res.rows[0]) : null;
+};
 
-    const row = res.rows[0];
-    return {
-        id: row.id,
-        eventId: row.event_id,
-        flightNumber: row.flight_number,
-        frontState: row.front_state,
-        backState: row.back_state,
-        createdAt: row.created_at.toISOString()
-    };
+export const updateFlightState = async (
+    flightId: string,
+    state: RoundState
+): Promise<Flight | null> => {
+    const pool = getPool();
+    const res = await pool.query(
+        `UPDATE flights SET state = $1 WHERE id = $2 RETURNING *`,
+        [state, flightId]
+    );
+    return res.rows[0] ? mapRow(res.rows[0]) : null;
 };

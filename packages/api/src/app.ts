@@ -8,13 +8,10 @@ import { playerRoutes } from './routes/players';
 import { flightRoutes } from './routes/flights';
 import scoreRoutes from './routes/scores';
 import leaderboardRoutes from './routes/leaderboard';
-import historyRoutes from './routes/history';
 import spectatorRoutes from './routes/spectator';
 import { roundRoutes } from './routes/rounds';
 import { netoRoutes } from './routes/netos';
 import { sidePotRoutes } from './routes/sidePots';
-import { betRoutes } from './routes/bets';
-import { generalBetRoutes } from './routes/generalBets';
 import { adminRoutes } from './routes/admin';
 import { inviteRoutes } from './routes/invites';
 import errorHandler from './plugins/errorHandler';
@@ -97,12 +94,9 @@ export const buildApp = (): FastifyInstance => {
     app.register(flightRoutes);
     app.register(scoreRoutes);
     app.register(leaderboardRoutes);
-    app.register(historyRoutes);
     app.register(spectatorRoutes);
     app.register(adminRoutes);
     app.register(inviteRoutes);
-    app.register(betRoutes);
-    app.register(generalBetRoutes);
 
     return app;
 };

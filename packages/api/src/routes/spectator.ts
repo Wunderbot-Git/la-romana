@@ -3,7 +3,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { createSpectatorLink, validateSpectatorToken } from '../services/spectatorService';
 import { getLeaderboard } from '../services/leaderboardService';
-import { getFlightMatchHistory } from '../services/leaderboardService';
+import { getFlightScoreboardData } from '../services/scoreService';
 import { getTokensForEvent, revokeToken } from '../repositories/spectatorRepository';
 import { authenticate } from '../middleware/auth';
 import { requireOrganizer } from '../middleware/authExtensions';
@@ -96,9 +96,9 @@ export default async function spectatorRoutes(fastify: FastifyInstance) {
         }
     );
 
-    // Public: Get flight history via spectator token
+    // Public: Get flight scoreboard via spectator token
     fastify.get<{ Params: SpectatorFlightParams }>(
-        '/spectate/:token/flights/:flightId/history',
+        '/spectate/:token/flights/:flightId/scoreboard',
         async (request: FastifyRequest<{ Params: SpectatorFlightParams }>, reply: FastifyReply) => {
             try {
                 const { token, flightId } = request.params;
@@ -108,12 +108,8 @@ export default async function spectatorRoutes(fastify: FastifyInstance) {
                     return reply.status(404).send({ error: 'Invalid or expired spectator link' });
                 }
 
-                const history = await getFlightMatchHistory(flightId);
-                if (!history) {
-                    return reply.send({ message: 'Not enough players assigned to flight' });
-                }
-
-                return reply.send(history);
+                const data = await getFlightScoreboardData(flightId);
+                return reply.send(data);
             } catch (error: any) {
                 if (error.message === 'Flight not found') {
                     return reply.status(404).send({ error: error.message });

@@ -75,7 +75,7 @@ describe('calculateStablefordRound', () => {
     });
 
     it('handles pickups (null gross) as 0 points', () => {
-        const grossScores = [...pars72];
+        const grossScores: (number | null)[] = [...pars72];
         grossScores[0] = null; // picked up on hole 1
         grossScores[17] = null; // picked up on hole 18
 
