@@ -3,56 +3,74 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 
-interface PlayerScore {
+export interface MatchSummary {
+    matchType: 'singles1' | 'singles2' | 'fourball';
+    winner: 'red' | 'blue' | null;
+    finalStatus: string;
+    redPoints: number;
+    bluePoints: number;
+    holesPlayed: number;
+    isComplete: boolean;
+}
+
+export interface FlightRoundSummary {
+    flightId: string;
+    flightNumber: number;
+    state: 'open' | 'completed' | 'reopened';
+    matches: MatchSummary[];
+    redPoints: number;
+    bluePoints: number;
+}
+
+export interface RoundBreakdown {
+    roundId: string;
+    roundNumber: number;
+    courseName: string;
+    state: 'open' | 'completed' | 'reopened';
+    teamPoints: { red: number; blue: number };
+    flightSummaries: FlightRoundSummary[];
+}
+
+export interface RyderTeamStanding {
+    team: 'red' | 'blue';
+    matchPointsCumulative: number;
+    roundsPlayed: number;
+}
+
+export interface StablefordStanding {
     playerId: string;
     playerName: string;
-    hcp: number;
-    scores: (number | null)[];
+    handicapIndex: number;
+    team: 'red' | 'blue' | null;
+    stablefordCumulative: number;
+    ryderIndividualCumulative: number;
+    roundsPlayed: number;
 }
 
-interface Match {
+export interface NetoPotWinnerSummary {
     id: string;
-    flightId: string;
-    flightName: string;
-    segmentType: 'singles1' | 'singles2' | 'fourball' | 'scramble';
-    status: 'not_started' | 'in_progress' | 'completed';
-    currentHole: number;
-    matchStatus: string; // e.g., "2 UP", "A/S", "1 DN"
-    fourballStatus?: string;
-    scrambleStatus?: string;
-    matchWinner: 'red' | 'blue' | null;
-    currentLeader: 'red' | 'blue' | null;
-    redPlayers: PlayerScore[];
-    bluePlayers: PlayerScore[];
-    parValues: number[];
-    hcpValues: number[];
-    scrambleSiValues?: number[];
-    matchProgression: string[]; // Status at each hole
-    holeWinners: ('red' | 'blue' | null)[];
-    matchLeaders: ('red' | 'blue' | null)[];
-    redTeamStrokes?: number[]; // For scramble
-    blueTeamStrokes?: number[];
+    potId: string;
+    playerId: string;
+    rank: 1 | 2;
 }
 
-interface LeaderboardData {
+export interface NetoPotSummary {
+    id: string;
+    roundId: string;
+    flightId: string;
+    potAmountUsd: number;
+    createdAt: string;
+    winners: NetoPotWinnerSummary[];
+}
+
+export interface LeaderboardData {
     eventId: string;
     eventName: string;
     updatedAt: string;
-    totalScore: {
-        red: number;
-        blue: number;
-    };
-    projectedScore: {
-        red: number;
-        blue: number;
-    };
-    segmentScores: {
-        singles: { red: number; blue: number };
-        fourball: { red: number; blue: number };
-        scramble: { red: number; blue: number };
-    };
-    momentum: 'red' | 'blue' | 'neutral';
-    matches: Match[];
+    ryderStandings: RyderTeamStanding[];
+    stablefordStandings: StablefordStanding[];
+    rounds: RoundBreakdown[];
+    netoPotsByRound: Record<string, NetoPotSummary[]>;
 }
 
 export function useLeaderboard(eventId: string) {
@@ -82,4 +100,5 @@ export function useLeaderboard(eventId: string) {
     return { data, isLoading, error, refetch: fetchLeaderboard };
 }
 
-export type { LeaderboardData, Match, PlayerScore };
+// Back-compat alias (old name used elsewhere)
+export type Match = MatchSummary;

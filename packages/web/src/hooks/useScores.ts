@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 
-interface FlightScore {
+export interface FlightScore {
     flightId: string;
+    roundId: string;
     flightName: string;
-    segmentType: 'singles' | 'fourball' | 'scramble';
     matchStatus: string;
-    fourballStatus?: string;
-    scrambleStatus?: string;
+    fourballStatus: string;
+    fourballWinner: 'red' | 'blue' | null;
+    fourballComplete: boolean;
+    fourballLeader: 'red' | 'blue' | null;
+    fourballLead: number;
     currentHole: number;
     redPlayers: {
         playerId: string;
@@ -32,24 +35,21 @@ interface FlightScore {
         singlesHoles?: (string | null)[];
     }[];
     parValues: number[];
-    siValues: number[];
-    scrambleSiValues?: number[];
     matchProgression: (string | null)[];
-    holeWinners: (string | null)[];
-    matchLeaders: ('red' | 'blue' | null)[]; // Add this line
+    holeWinners: ('red' | 'blue' | null)[];
+    matchLeaders: ('red' | 'blue' | null)[];
 }
 
-export function useFlightScores(eventId: string, flightId?: string) {
+export function useFlightScores(eventId: string, flightId?: string | null) {
     const [data, setData] = useState<FlightScore | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchScores = async () => {
-        if (!flightId) {
+    const fetchScores = useCallback(async () => {
+        if (!flightId || !eventId) {
             setIsLoading(false);
             return;
         }
-
         try {
             setIsLoading(true);
             const response = await api.get<FlightScore>(`/events/${eventId}/flights/${flightId}/scores`);
@@ -60,41 +60,33 @@ export function useFlightScores(eventId: string, flightId?: string) {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [eventId, flightId]);
 
     useEffect(() => {
         fetchScores();
-    }, [eventId, flightId]);
+    }, [fetchScores]);
 
     return { data, isLoading, error, refetch: fetchScores };
 }
 
-interface SubmitScoreParams {
-    eventId: string;
-    flightId: string;
-    playerId: string;
-    hole: number;
-    score: number;
-}
-
 interface BatchScore {
-    playerId?: string;
-    team?: 'red' | 'blue';
+    playerId: string;
     hole: number;
     score: number | null;
 }
 
 interface SubmitBatchParams {
     eventId: string;
+    roundId: string;
     flightId: string;
     scores: BatchScore[];
+    source?: 'online' | 'offline';
 }
 
 const getMutationId = () => {
-    if (typeof crypto.randomUUID === 'function') {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
     }
-    // Fallback RFC 4122 compliant UUID v4 generator for non-secure contexts
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
         const r = (Math.random() * 16) | 0;
         const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -106,47 +98,22 @@ export function useSubmitScores() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const submitScore = async (params: SubmitScoreParams): Promise<boolean> => {
-        return submitBatchScores({
-            eventId: params.eventId,
-            flightId: params.flightId,
-            scores: [{ playerId: params.playerId, hole: params.hole, score: params.score }]
-        });
-    };
-
     const submitBatchScores = async (params: SubmitBatchParams): Promise<boolean> => {
         try {
             setIsSubmitting(true);
             setError(null);
 
-            const isScramble = params.scores.some((s: any) => s.team);
-
-            let payload;
-            let endpoint;
-
-            if (isScramble) {
-                payload = {
-                    scores: params.scores.map((s: any) => ({
-                        team: s.team,
-                        holeNumber: s.hole,
-                        grossScore: s.score,
-                        mutationId: getMutationId()
-                    }))
-                };
-                endpoint = `/events/${params.eventId}/flights/${params.flightId}/scramble-scores`;
-            } else {
-                payload = {
-                    scores: params.scores.map(s => ({
-                        playerId: s.playerId,
-                        holeNumber: s.hole,
-                        grossScore: s.score,
-                        mutationId: getMutationId()
-                    }))
-                };
-                endpoint = `/events/${params.eventId}/flights/${params.flightId}/scores`;
-            }
-
-            await api.put(endpoint, payload);
+            const payload = {
+                roundId: params.roundId,
+                source: params.source ?? 'online',
+                scores: params.scores.map(s => ({
+                    playerId: s.playerId,
+                    holeNumber: s.hole,
+                    grossScore: s.score,
+                    mutationId: getMutationId(),
+                })),
+            };
+            await api.put(`/events/${params.eventId}/flights/${params.flightId}/scores`, payload);
             return true;
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to submit scores');
@@ -156,7 +123,7 @@ export function useSubmitScores() {
         }
     };
 
-    return { submitScore, submitBatchScores, isSubmitting, error };
+    return { submitBatchScores, isSubmitting, error };
 }
 
 export function useDeleteScores() {
@@ -193,5 +160,3 @@ export function useDeleteScores() {
 
     return { deleteFlightScores, deleteHoleScores, isDeleting, error };
 }
-
-export type { FlightScore };

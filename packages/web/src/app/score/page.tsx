@@ -1,223 +1,211 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import dynamic from 'next/dynamic';
-import { useAuth } from '@/lib/auth';
+import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useMyEvents } from '@/hooks/useEvents';
-import { usePlayers } from '@/hooks/usePlayers';
 import { useFlightScores, useSubmitScores } from '@/hooks/useScores';
-import { ScoreGrid } from '@/components/ScoreGrid';
-import { CelebrationOverlay } from '@/components/CelebrationOverlay';
 
-const ScoreEntryModal = dynamic(() => import('@/components/ScoreEntryModal').then(m => ({ default: m.ScoreEntryModal })), { ssr: false });
+export default function ScorePage() {
+    const router = useRouter();
+    const params = useSearchParams();
+    const roundId = params.get('roundId');
+    const flightId = params.get('flightId');
 
-export default function ScoresPage() {
-    const { user } = useAuth();
     const { events, isLoading: eventsLoading } = useMyEvents();
-
     const activeEvent = useMemo(() => {
         if (!events || events.length === 0) return null;
         return events.find(e => e.status === 'live') || events[0];
     }, [events]);
-
     const eventId = activeEvent?.id || '';
-    const { players, isLoading: playersLoading } = usePlayers(eventId);
 
-    const me = useMemo(() => {
-        if (!user || !players) return null;
-        return players.find(p => p.userId === user.id);
-    }, [user, players]);
+    const { data: flight, isLoading, refetch } = useFlightScores(eventId, flightId);
+    const { submitBatchScores, isSubmitting, error } = useSubmitScores();
 
-    const flightId = me?.flightId;
+    const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
+    const [draft, setDraft] = useState<Record<string, (number | null)[]>>({});
 
-    const { data: flightScore, isLoading: scoresLoading, refetch } = useFlightScores(eventId, flightId);
-    const { submitBatchScores, isSubmitting: isSaving, error: submitError } = useSubmitScores();
-    const [openHole, setOpenHole] = useState<number | null>(null);
-    const [lastSavedHole, setLastSavedHole] = useState<number | null>(null);
-    const [activeSegment, setActiveSegmentState] = useState<'bestball' | 'scramble'>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('score_activeSegment');
-            if (saved === 'bestball' || saved === 'scramble') return saved;
-        }
-        return 'bestball';
-    });
-    const setActiveSegment = (seg: 'bestball' | 'scramble') => {
-        setActiveSegmentState(seg);
-        if (typeof window !== 'undefined') localStorage.setItem('score_activeSegment', seg);
-    };
-
-    const [celebrationTeam, setCelebrationTeam] = useState<'red' | 'blue' | null>(null);
-
-    // Trigger celebration video when either team wins a hole
     useEffect(() => {
-        if (lastSavedHole && flightScore) {
-            const winner = flightScore.holeWinners[lastSavedHole - 1];
-            if (winner === 'red' || winner === 'blue') {
-                setCelebrationTeam(winner);
-            }
-        }
-    }, [lastSavedHole, flightScore]);
+        if (!flight) return;
+        const seed: Record<string, (number | null)[]> = {};
+        [...flight.redPlayers, ...flight.bluePlayers].forEach(p => {
+            seed[p.playerId] = p.scores.slice();
+        });
+        setDraft(seed);
+    }, [flight]);
 
-    const isLoading = eventsLoading || playersLoading || (flightId ? scoresLoading : false);
+    if (!flightId || !roundId) {
+        return (
+            <div className="p-8 text-center">
+                <p className="text-gray-500 mb-2">Falta el round o el grupo.</p>
+                <Link href="/matches" className="text-blue-600 underline">Volver a Partidas</Link>
+            </div>
+        );
+    }
+    if (eventsLoading || isLoading) {
+        return <div className="p-8 text-center text-gray-500">Cargando…</div>;
+    }
+    if (!flight || !activeEvent) {
+        return <div className="p-8 text-center text-gray-500">Grupo no encontrado.</div>;
+    }
 
-    const handleHoleClick = (hole: number) => {
-        setOpenHole(hole);
+    const allPlayers = [...flight.redPlayers, ...flight.bluePlayers];
+
+    const setHoleScore = (playerId: string, holeIdx: number, value: number | null) => {
+        setDraft(prev => ({
+            ...prev,
+            [playerId]: prev[playerId]?.map((s, i) => (i === holeIdx ? value : s)) ?? [],
+        }));
     };
 
-    const handleSaveModal = async (scores: Record<string, number | null>) => {
-        if (!flightScore || openHole === null || !flightId) return;
-
-        const isScrambleHole = openHole > 9;
-
-        const batch = Object.entries(scores).map(([id, score]) => {
-            if (isScrambleHole) {
-                return {
-                    team: id === 'red_team' ? 'red' as const : 'blue' as const,
-                    hole: openHole,
-                    score
-                };
+    const saveAll = async () => {
+        const payload: { playerId: string; hole: number; score: number | null }[] = [];
+        for (const p of allPlayers) {
+            const current = flight.redPlayers.find(r => r.playerId === p.playerId)?.scores
+                ?? flight.bluePlayers.find(b => b.playerId === p.playerId)?.scores
+                ?? [];
+            const next = draft[p.playerId] ?? [];
+            for (let i = 0; i < 18; i++) {
+                if (current[i] !== next[i]) {
+                    payload.push({ playerId: p.playerId, hole: i + 1, score: next[i] });
+                }
             }
-            return {
-                playerId: id,
-                hole: openHole,
-                score
-            };
-        });
-
-        const success = await submitBatchScores({
-            eventId,
+        }
+        if (payload.length === 0) return;
+        const ok = await submitBatchScores({
+            eventId: activeEvent.id,
+            roundId,
             flightId,
-            scores: batch
+            scores: payload,
         });
-
-        if (success) {
-            setLastSavedHole(openHole);
-            setOpenHole(null);
-            refetch();
+        if (ok) {
+            await refetch();
+            setEditingPlayer(null);
         }
     };
 
-    const isScrambleModal = openHole !== null && openHole > 9;
-
-    const modalPlayers = openHole && flightScore ? (
-        isScrambleModal ? [
-            {
-                playerId: 'red_team',
-                playerName: flightScore.redPlayers.map(p => p.playerName.split(' ')[0]).join(' / '),
-                hcp: Math.round(flightScore.redPlayers.reduce((a, b) => a + b.hcp, 0) / (flightScore.redPlayers.length || 1)),
-                team: 'red' as const,
-                scores: flightScore.redPlayers[0]?.scores || []
-            },
-            {
-                playerId: 'blue_team',
-                playerName: flightScore.bluePlayers.map(p => p.playerName.split(' ')[0]).join(' / '),
-                hcp: Math.round(flightScore.bluePlayers.reduce((a, b) => a + b.hcp, 0) / (flightScore.bluePlayers.length || 1)),
-                team: 'blue' as const,
-                scores: flightScore.bluePlayers[0]?.scores || []
-            }
-        ] : [
-            ...flightScore.redPlayers.map(p => ({ ...p, team: 'red' as const })),
-            ...flightScore.bluePlayers.map(p => ({ ...p, team: 'blue' as const }))
-        ]
-    ) : [];
-
-    const initialScores = openHole && flightScore ? modalPlayers.reduce((acc, p) => {
-        acc[p.playerId] = p.scores[openHole - 1] ?? null;
-        return acc;
-    }, {} as Record<string, number | null>) : {};
-
-    const currentPar = openHole && flightScore ? flightScore.parValues[openHole - 1] : 0;
+    const hasChanges = allPlayers.some(p => {
+        const current = p.scores;
+        const next = draft[p.playerId] ?? [];
+        return next.some((v, i) => v !== current[i]);
+    });
 
     return (
-        <div className="flex flex-col h-[100dvh] pb-16 overflow-hidden">
-
-            {/* ERROR indicator */}
-            {submitError && (
-                <div className="px-4 py-2 bg-red-900/80 text-white text-xs text-center border-b border-red-700 font-fredoka">
-                    <span className="font-bold">Error:</span> {submitError}
+        <div className="min-h-screen bg-gray-50 pb-24">
+            <header className="bg-white border-b sticky top-0 z-10">
+                <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+                    <div>
+                        <Link href="/matches" className="text-sm text-blue-600">&larr; Partidas</Link>
+                        <h1 className="text-lg font-bold">{flight.flightName}</h1>
+                    </div>
+                    <button
+                        onClick={saveAll}
+                        disabled={!hasChanges || isSubmitting}
+                        className={`px-4 py-2 rounded-md text-sm font-medium ${
+                            hasChanges && !isSubmitting
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        }`}
+                    >
+                        {isSubmitting ? 'Guardando…' : 'Guardar'}
+                    </button>
                 </div>
-            )}
+                {error && <div className="bg-red-50 text-red-600 text-sm px-4 py-2">{error}</div>}
+            </header>
 
-            {/* Saving indicator */}
-            {isSaving && (
-                <div className="px-4 py-1 bg-gold-border/20 text-gold-light text-xs text-center font-fredoka">
-                    Guardando...
+            <main className="max-w-3xl mx-auto px-4 py-4">
+                <div className="mb-4 text-sm text-gray-600">
+                    <span className="font-medium">Fourball:</span> {flight.fourballStatus}
                 </div>
-            )}
 
-            <main className="flex-1 min-h-0 overflow-hidden">
-                {isLoading ? (
-                    <div className="flex flex-col items-center justify-center p-12">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-border mb-4"></div>
-                        <p className="text-forest-deep/60 text-sm font-fredoka">Cargando tu partido...</p>
-                    </div>
-                ) : !activeEvent ? (
-                    <div className="p-8 text-center">
-                        <div className="cartoon-card p-6">
-                            <p className="text-forest-deep/60 mb-4 font-fredoka">No eres parte de ningún evento activo.</p>
+                <div className="space-y-6">
+                    {['red', 'blue'].map(team => (
+                        <div key={team}>
+                            <h2 className={`text-sm font-bold uppercase mb-2 ${team === 'red' ? 'text-team-red' : 'text-team-blue'}`}>
+                                {team}
+                            </h2>
+                            <div className="space-y-3">
+                                {(team === 'red' ? flight.redPlayers : flight.bluePlayers).map(p => (
+                                    <PlayerScoreCard
+                                        key={p.playerId}
+                                        player={p}
+                                        pars={flight.parValues}
+                                        draft={draft[p.playerId] ?? []}
+                                        onSet={(i, v) => setHoleScore(p.playerId, i, v)}
+                                        expanded={editingPlayer === p.playerId}
+                                        onToggle={() =>
+                                            setEditingPlayer(editingPlayer === p.playerId ? null : p.playerId)
+                                        }
+                                    />
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                ) : !flightId ? (
-                    <div className="p-8 text-center">
-                        <div className="cartoon-card p-6 text-center">
-                            <p className="mb-2 font-bangers text-[#1e293b] uppercase text-xs tracking-widest">Sin Partido Asignado</p>
-                            <p className="text-sm font-fredoka text-forest-deep/70">Podrás ingresar scores cuando te asignen a un grupo en <span className="font-bold text-forest-deep">{activeEvent.name}</span>.</p>
-                        </div>
-                    </div>
-                ) : !flightScore ? (
-                    <div className="p-8 text-center text-red-500 font-fredoka">
-                        Error al cargar los datos de scores.
-                    </div>
-                ) : (
-                    <div className="h-full flex flex-col overflow-hidden">
-                        {/* Segment Toggle */}
-                        <div className="flex gap-2 px-4 pt-3 pb-2">
-                            <button
-                                onClick={() => setActiveSegment('bestball')}
-                                className={`flex-1 py-2 rounded-lg text-xs font-bangers uppercase tracking-wider transition-colors ${activeSegment === 'bestball'
-                                        ? 'bg-team-blue text-white shadow-sm thick-border font-bold'
-                                        : 'cartoon-card text-gray-500 font-bold'
-                                    }`}
-                            >
-                                Hoyos 1-9
-                            </button>
-                            <button
-                                onClick={() => setActiveSegment('scramble')}
-                                className={`flex-1 py-2 rounded-lg text-xs font-bangers uppercase tracking-wider transition-colors ${activeSegment === 'scramble'
-                                        ? 'bg-team-blue text-white shadow-sm thick-border font-bold'
-                                        : 'cartoon-card text-gray-500 font-bold'
-                                    }`}
-                            >
-                                Hoyos 10-18
-                            </button>
-                        </div>
-
-                        <ScoreGrid
-                            flightScore={{ ...flightScore, segmentType: activeSegment === 'bestball' ? 'fourball' : 'scramble' }}
-                            onHoleClick={handleHoleClick}
-                            pendingScores={{}}
-                            scrollToHole={lastSavedHole}
-                        />
-                    </div>
-                )}
+                    ))}
+                </div>
             </main>
+        </div>
+    );
+}
 
-            {celebrationTeam && (
-                <CelebrationOverlay team={celebrationTeam} onClose={() => setCelebrationTeam(null)} />
-            )}
+function PlayerScoreCard({
+    player,
+    pars,
+    draft,
+    onSet,
+    expanded,
+    onToggle,
+}: {
+    player: { playerId: string; playerName: string; hcp: number; singlesStatus: string | null };
+    pars: number[];
+    draft: (number | null)[];
+    onSet: (holeIdx: number, value: number | null) => void;
+    expanded: boolean;
+    onToggle: () => void;
+}) {
+    const total = draft.reduce<number>((a, v) => a + (v ?? 0), 0);
+    const parTotal = pars.reduce<number>((a, v) => a + v, 0);
 
-            {openHole !== null && flightScore && (
-                <ScoreEntryModal
-                    isOpen={true}
-                    holeNumber={openHole}
-                    par={currentPar}
-                    players={modalPlayers}
-                    initialScores={initialScores}
-                    onSave={handleSaveModal}
-                    onClose={() => setOpenHole(null)}
-                    isSaving={isSaving}
-                    error={submitError}
-                />
+    return (
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <button
+                onClick={onToggle}
+                className="w-full px-4 py-3 flex items-center justify-between"
+            >
+                <div className="flex-1 text-left">
+                    <div className="font-medium">
+                        {player.playerName} <span className="text-gray-400 text-sm">HCP {player.hcp}</span>
+                    </div>
+                    {player.singlesStatus && (
+                        <div className="text-xs text-gray-500">Singles: {player.singlesStatus}</div>
+                    )}
+                </div>
+                <div className="text-right">
+                    <div className="font-bold text-lg">{total || '—'}</div>
+                    <div className="text-xs text-gray-500">Par {parTotal}</div>
+                </div>
+            </button>
+            {expanded && (
+                <div className="border-t px-2 py-3">
+                    <div className="grid grid-cols-9 gap-1 text-xs">
+                        {Array.from({ length: 18 }).map((_, i) => (
+                            <div key={i} className="flex flex-col items-center">
+                                <div className="text-gray-400">{i + 1}</div>
+                                <div className="text-gray-500 text-[10px]">P{pars[i] ?? '-'}</div>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="15"
+                                    value={draft[i] ?? ''}
+                                    onChange={(e) => {
+                                        const v = e.target.value === '' ? null : Number(e.target.value);
+                                        onSet(i, Number.isFinite(v) && (v as number) > 0 ? (v as number) : null);
+                                    }}
+                                    className="w-10 h-10 text-center border border-gray-300 rounded text-sm"
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
             )}
         </div>
     );
