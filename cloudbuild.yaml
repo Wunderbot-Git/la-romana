@@ -1,65 +1,70 @@
-# cloudbuild.yaml
+# cloudbuild.yaml — La Romana 2026
+#
+# Deploys to a NEW GCP project separate from the Bogotá app.
+# Service names: la-romana-api, la-romana-web.
+#
+# Required substitutions (pass via gcloud builds submit --substitutions= or Cloud Build trigger):
+#   _API_URL        — public URL of the deployed API (e.g. https://la-romana-api-xxx.run.app)
+#   _DATABASE_URL   — Cloud SQL connection string (postgresql://...)
+#   _JWT_SECRET     — JWT signing secret
+#
+# Example invocation (once $PROJECT_ID is set to the new La Romana GCP project):
+#   gcloud builds submit --substitutions=_API_URL=https://TBD,_DATABASE_URL=$DATABASE_URL,_JWT_SECRET=$JWT_SECRET
+
 steps:
   # 1. Build the API image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/ryder-cup-api', '-f', 'Dockerfile.api', '.']
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/la-romana-api', '-f', 'Dockerfile.api', '.']
 
   # 2. Build the Web image
   - name: 'gcr.io/cloud-builders/docker'
     args: [
-      'build', 
-      '-t', 'gcr.io/$PROJECT_ID/ryder-cup-web', 
+      'build',
+      '-t', 'gcr.io/$PROJECT_ID/la-romana-web',
       '--build-arg', 'NEXT_PUBLIC_API_URL=$_API_URL',
-      '-f', 'Dockerfile.web', 
+      '-f', 'Dockerfile.web',
       '.'
     ]
 
   # 3. Push the API image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/ryder-cup-api']
+    args: ['push', 'gcr.io/$PROJECT_ID/la-romana-api']
 
   # 4. Push the Web image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/ryder-cup-web']
+    args: ['push', 'gcr.io/$PROJECT_ID/la-romana-web']
 
-  # 5. Run Database Migrations using the built API container
-  #- name: 'gcr.io/$PROJECT_ID/ryder-cup-api'
-  #  entrypoint: 'sh'
-  #  args: ['-c', 'cd /app/packages/api && npx ts-node src/scripts/migrate.ts']
-  #  env:
-  #    - 'DATABASE_URL=$_DATABASE_URL'
-
-  # 6. Deploy API to Cloud Run
+  # 5. Deploy API to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'ryder-cup-api'
+      - 'la-romana-api'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/ryder-cup-api'
+      - 'gcr.io/$PROJECT_ID/la-romana-api'
       - '--region'
       - 'us-central1'
       - '--set-env-vars'
       - 'DATABASE_URL=$_DATABASE_URL,JWT_SECRET=$_JWT_SECRET,NODE_ENV=production'
       - '--allow-unauthenticated'
 
-  # 7. Deploy Web to Cloud Run
+  # 6. Deploy Web to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'ryder-cup-web'
+      - 'la-romana-web'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/ryder-cup-web'
+      - 'gcr.io/$PROJECT_ID/la-romana-web'
       - '--region'
       - 'us-central1'
       - '--allow-unauthenticated'
 
 images:
-  - 'gcr.io/$PROJECT_ID/ryder-cup-api'
-  - 'gcr.io/$PROJECT_ID/ryder-cup-web'
+  - 'gcr.io/$PROJECT_ID/la-romana-api'
+  - 'gcr.io/$PROJECT_ID/la-romana-web'
 
 options:
   logging: CLOUD_LOGGING_ONLY
