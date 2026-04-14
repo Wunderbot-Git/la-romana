@@ -3,7 +3,23 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 
-export interface MatchSummary {
+export interface MatchPlayer {
+    id: string;
+    name: string;
+    hcp: number;
+}
+
+export interface MatchHoleDetail {
+    holeNumber: number;
+    par: number;
+    strokeIndex: number;
+    redScores: (number | null)[];
+    blueScores: (number | null)[];
+    winner: 'red' | 'blue' | null;
+    matchStateLabel: string | null;
+}
+
+export interface MatchDetail {
     matchType: 'singles1' | 'singles2' | 'fourball';
     winner: 'red' | 'blue' | null;
     finalStatus: string;
@@ -11,13 +27,23 @@ export interface MatchSummary {
     bluePoints: number;
     holesPlayed: number;
     isComplete: boolean;
+    flightId: string;
+    flightNumber: number;
+    redPlayers: MatchPlayer[];
+    bluePlayers: MatchPlayer[];
+    pars: number[];
+    strokeIndexes: number[];
+    holes: MatchHoleDetail[];
 }
+
+// Back-compat alias for call sites still using the old name
+export type MatchSummary = MatchDetail;
 
 export interface FlightRoundSummary {
     flightId: string;
     flightNumber: number;
     state: 'open' | 'completed' | 'reopened';
-    matches: MatchSummary[];
+    matches: MatchDetail[];
     redPoints: number;
     bluePoints: number;
     redPointsProjected: number;

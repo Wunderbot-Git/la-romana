@@ -14,6 +14,7 @@ import {
     FlightPlayerScores,
     MatchSummary,
 } from '../scoring/flightMatchCalculator';
+import { formatMatchStatus } from '../scoring/matchStatus';
 import { calculateStablefordRound } from '../scoring/stableford';
 import {
     aggregatePlayerTotals,
@@ -52,11 +53,39 @@ export interface RoundBreakdown {
     flightSummaries: FlightRoundSummary[];
 }
 
+export interface MatchPlayer {
+    id: string;
+    name: string;
+    hcp: number;
+}
+
+export interface MatchHoleDetail {
+    holeNumber: number;
+    par: number;
+    strokeIndex: number;
+    /** Gross scores per player (same order as redPlayers on the match). */
+    redScores: (number | null)[];
+    blueScores: (number | null)[];
+    winner: 'red' | 'blue' | null;
+    /** Formatted match state label for this hole ("1 UP", "A/S", "2&1", ...) or null if not played. */
+    matchStateLabel: string | null;
+}
+
+export interface MatchDetail extends MatchSummary {
+    flightId: string;
+    flightNumber: number;
+    redPlayers: MatchPlayer[];
+    bluePlayers: MatchPlayer[];
+    pars: number[];
+    strokeIndexes: number[];
+    holes: MatchHoleDetail[];
+}
+
 export interface FlightRoundSummary {
     flightId: string;
     flightNumber: number;
     state: 'open' | 'completed' | 'reopened';
-    matches: MatchSummary[];
+    matches: MatchDetail[];
     redPoints: number;
     bluePoints: number;
     redPointsProjected: number;
@@ -205,6 +234,50 @@ const loadFlightsForRound = async (roundId: string): Promise<FlightRow[]> => {
 const playerName = (r: RosterEntry): string =>
     [r.firstName, r.lastName].filter(n => n && n !== '-').join(' ').trim() || 'Unknown';
 
+const playerSummary = (r: RosterEntry): MatchPlayer => ({
+    id: r.id,
+    name: playerName(r),
+    hcp: r.handicapIndex,
+});
+
+const emptyHoleDetail = (holeNumber: number, par: number, strokeIndex: number, redCount: number, blueCount: number): MatchHoleDetail => ({
+    holeNumber,
+    par,
+    strokeIndex,
+    redScores: Array(redCount).fill(null),
+    blueScores: Array(blueCount).fill(null),
+    winner: null,
+    matchStateLabel: null,
+});
+
+/** Build a Not Started MatchDetail when the flight doesn't have 2+2 players. */
+const notStartedDetail = (
+    matchType: 'singles1' | 'singles2' | 'fourball',
+    flightId: string,
+    flightNumber: number,
+    red: MatchPlayer[],
+    blue: MatchPlayer[],
+    pars: number[],
+    strokeIndexes: number[]
+): MatchDetail => ({
+    matchType,
+    winner: null,
+    finalStatus: 'Not Started',
+    redPoints: 0,
+    bluePoints: 0,
+    holesPlayed: 0,
+    isComplete: false,
+    flightId,
+    flightNumber,
+    redPlayers: red,
+    bluePlayers: blue,
+    pars,
+    strokeIndexes,
+    holes: Array.from({ length: 18 }, (_, i) =>
+        emptyHoleDetail(i + 1, pars[i] ?? 4, strokeIndexes[i] ?? i + 1, red.length, blue.length)
+    ),
+});
+
 /**
  * Project a single match to (red, blue) projected points, where each match is worth 1 pt.
  *   null (not started)      → 0.5 / 0.5
@@ -306,10 +379,14 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
             // Default projection for a flight with no assigned players: 3 matches × 0.5/0.5 = 1.5/1.5
             let flightRedProjected = 1.5;
             let flightBlueProjected = 1.5;
-            let matches: MatchSummary[] = [
-                { matchType: 'singles1', winner: null, finalStatus: 'Not Started', redPoints: 0, bluePoints: 0, holesPlayed: 0, isComplete: false },
-                { matchType: 'singles2', winner: null, finalStatus: 'Not Started', redPoints: 0, bluePoints: 0, holesPlayed: 0, isComplete: false },
-                { matchType: 'fourball', winner: null, finalStatus: 'Not Started', redPoints: 0, bluePoints: 0, holesPlayed: 0, isComplete: false },
+
+            const redPlayersSummary = redSorted.map(playerSummary);
+            const bluePlayersSummary = blueSorted.map(playerSummary);
+
+            let matches: MatchDetail[] = [
+                notStartedDetail('singles1', flight.id, flight.flightNumber, redPlayersSummary.slice(0, 1), bluePlayersSummary.slice(0, 1), teeData.parValues, teeData.defaultSi),
+                notStartedDetail('singles2', flight.id, flight.flightNumber, redPlayersSummary.slice(1, 2), bluePlayersSummary.slice(1, 2), teeData.parValues, teeData.defaultSi),
+                notStartedDetail('fourball', flight.id, flight.flightNumber, redPlayersSummary, bluePlayersSummary, teeData.parValues, teeData.defaultSi),
             ];
 
             if (redSorted.length >= 2 && blueSorted.length >= 2) {
@@ -319,7 +396,6 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
                     bluePlayer1: buildPlayerScores(blueSorted[0], scoresByPlayer.get(blueSorted[0].id) ?? new Map(), teeData),
                     bluePlayer2: buildPlayerScores(blueSorted[1], scoresByPlayer.get(blueSorted[1].id) ?? new Map(), teeData),
                 });
-                matches = result.summary.matches;
                 flightRedPoints = result.summary.totalRedPoints;
                 flightBluePoints = result.summary.totalBluePoints;
 
@@ -329,6 +405,78 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
                 const p3 = projectMatch(result.fourball);
                 flightRedProjected = p1.red + p2.red + p3.red;
                 flightBlueProjected = p1.blue + p2.blue + p3.blue;
+
+                // Build detailed match cards
+                const buildSingles = (
+                    matchType: 'singles1' | 'singles2',
+                    output: typeof result.singles1,
+                    redPlayer: MatchPlayer,
+                    bluePlayer: MatchPlayer,
+                    summary: MatchSummary
+                ): MatchDetail => {
+                    const holes: MatchHoleDetail[] = Array.from({ length: 18 }, (_, i) => {
+                        const h = output?.holes[i];
+                        const par = teeData.parValues[i] ?? 4;
+                        const si = teeData.defaultSi[i] ?? i + 1;
+                        if (!h) return emptyHoleDetail(i + 1, par, si, 1, 1);
+                        return {
+                            holeNumber: h.holeNumber,
+                            par,
+                            strokeIndex: h.strokeIndex,
+                            redScores: [h.redGross],
+                            blueScores: [h.blueGross],
+                            winner: h.winner,
+                            matchStateLabel: formatMatchStatus(h.matchState),
+                        };
+                    });
+                    return {
+                        ...summary,
+                        flightId: flight.id,
+                        flightNumber: flight.flightNumber,
+                        redPlayers: [redPlayer],
+                        bluePlayers: [bluePlayer],
+                        pars: teeData.parValues,
+                        strokeIndexes: teeData.defaultSi,
+                        holes,
+                    };
+                };
+
+                const buildFourball = (
+                    output: typeof result.fourball,
+                    summary: MatchSummary
+                ): MatchDetail => {
+                    const holes: MatchHoleDetail[] = Array.from({ length: 18 }, (_, i) => {
+                        const h = output?.holes[i];
+                        const par = teeData.parValues[i] ?? 4;
+                        const si = teeData.defaultSi[i] ?? i + 1;
+                        if (!h) return emptyHoleDetail(i + 1, par, si, 2, 2);
+                        return {
+                            holeNumber: h.holeNumber,
+                            par,
+                            strokeIndex: si,
+                            redScores: [h.red.p1Gross, h.red.p2Gross],
+                            blueScores: [h.blue.p1Gross, h.blue.p2Gross],
+                            winner: h.winner,
+                            matchStateLabel: formatMatchStatus(h.matchState),
+                        };
+                    });
+                    return {
+                        ...summary,
+                        flightId: flight.id,
+                        flightNumber: flight.flightNumber,
+                        redPlayers: redPlayersSummary,
+                        bluePlayers: bluePlayersSummary,
+                        pars: teeData.parValues,
+                        strokeIndexes: teeData.defaultSi,
+                        holes,
+                    };
+                };
+
+                matches = [
+                    buildSingles('singles1', result.singles1, redPlayersSummary[0], bluePlayersSummary[0], result.summary.matches[0]),
+                    buildSingles('singles2', result.singles2, redPlayersSummary[1], bluePlayersSummary[1], result.summary.matches[1]),
+                    buildFourball(result.fourball, result.summary.matches[2]),
+                ];
 
                 // Allocate individual Ryder points:
                 //   singles1 winner → Red P1 or Blue P1 (1 pt)
