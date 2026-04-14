@@ -9,7 +9,7 @@
         "test:watch": "vitest",
         "migrate": "ts-node src/scripts/migrate.ts",
         "migrate:prod": "node dist/scripts/migrate.js",
-        "seed": "ts-node scripts/seed-tournament.ts"
+        "seed": "ts-node scripts/seed-la-romana.ts"
     },
     "dependencies": {
         "@fastify/helmet": "^11.1.1",
