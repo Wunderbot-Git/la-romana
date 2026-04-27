@@ -34,6 +34,7 @@ interface Player {
 interface Tee {
     id?: string;
     name: string;
+    courseName?: string;
 }
 
 interface Course {
@@ -41,6 +42,12 @@ interface Course {
     eventId: string;
     name: string;
     tees: Tee[];
+}
+
+interface Round {
+    id: string;
+    eventId: string;
+    courseId: string;
 }
 
 // ─── Edit Player Modal ──────────────────────────────────────────────────────
@@ -137,7 +144,7 @@ function EditPlayerModal({
                         >
                             {tees.map(t => (
                                 <option key={t.id} value={t.id} className="bg-[#0a1322]">
-                                    {t.name}
+                                    {t.courseName ? `${t.courseName} · ${t.name}` : t.name}
                                 </option>
                             ))}
                         </select>
@@ -305,12 +312,29 @@ export default function AdminPlayersPage() {
         const fetchData = async () => {
             try {
                 setIsLoading(true);
-                const [playersData, courseData] = await Promise.all([
+                const [playersData, roundsData] = await Promise.all([
                     api.get<Player[]>(`/events/${eventId}/players`),
-                    api.get<Course>(`/events/${eventId}/course`).catch(() => null),
+                    api.get<Round[]>(`/events/${eventId}/rounds`).catch(() => []),
                 ]);
                 setPlayers(playersData);
-                if (courseData) setTees(courseData.tees);
+
+                // Load all 3 courses' tees (LR has Teeth of the Dog, Ocean's 4, Dye Fore).
+                // The legacy single-course endpoint /events/:id/course only returned one,
+                // so the dropdown was missing every tee outside R1's course.
+                const courseIds = Array.from(new Set(roundsData.map(r => r.courseId)));
+                const courses = await Promise.all(
+                    courseIds.map(cid =>
+                        api.get<Course>(`/events/${eventId}/courses/${cid}`).catch(() => null),
+                    ),
+                );
+                const allTees: Tee[] = [];
+                for (const c of courses) {
+                    if (!c) continue;
+                    for (const t of c.tees) {
+                        allTees.push({ id: t.id, name: t.name, courseName: c.name });
+                    }
+                }
+                setTees(allTees);
             } catch {
                 setError('Error al cargar jugadores');
             } finally {
