@@ -12,3 +12,7 @@ tmp_*
 get_data.js
 current_run_config.json
 avatar/
+
+# Archived/legacy material — kept locally, never pushed
+_archive/
+par00-pitufos-carinositos-main/
