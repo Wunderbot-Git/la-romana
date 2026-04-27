@@ -8,8 +8,8 @@ module.exports = {
     theme: {
         extend: {
             colors: {
-                'team-red': '#E75480',
-                'team-blue': '#4A90D9',
+                'team-red': '#F0C850',
+                'team-blue': '#5BA6DC',
                 'scorecard-navy': '#1a1a3e',
                 'forest-deep': '#0a4030',
                 'forest-mid': '#147255',
@@ -26,6 +26,7 @@ module.exports = {
             fontFamily: {
                 bangers: ['var(--font-bangers)', 'cursive'],
                 fredoka: ['var(--font-fredoka)', 'sans-serif'],
+                bowlby: ['var(--font-bowlby)', 'sans-serif'],
             },
         },
     },

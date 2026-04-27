@@ -26,9 +26,11 @@
 html,
 body {
   max-width: 100vw;
+  min-height: 100%;
   font-family: var(--font-fredoka), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: #1f9472;
-  /* Fallback color */
+  background-color: #07101b;
+  color: #fff8e7;
+  overscroll-behavior-y: none;
 }
 
 h1,
@@ -37,17 +39,19 @@ h3,
 h4,
 .comic-font {
   font-family: var(--font-bangers), cursive;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
 }
 
 /* App background — fixed pseudo-element for iOS Safari compatibility.
    Uses z-index:0 (not -1) so it isn't clipped by overflow:hidden children.
    Content must use position:relative + z-index:1 to sit above. */
 .bg-app-gradient {
-  background-color: #147255;
+  background-color: #07101b;
   height: 100dvh;
   overflow-y: auto;
   position: relative;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 .bg-app-gradient::before {
@@ -57,10 +61,25 @@ h4,
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: url('/images/Gemini_Generated_Image_4q77n64q77n64q77.webp');
+  background-image: url('/images/background.webp');
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;
+  z-index: 0;
+}
+
+/* Atmosphere scrim — darkens the background so foreground cards pop. */
+.bg-app-gradient::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background:
+    linear-gradient(180deg, rgba(4, 10, 16, 0.2) 0%, rgba(7, 16, 27, 0.44) 38%, rgba(3, 8, 14, 0.9) 100%),
+    linear-gradient(90deg, rgba(84, 43, 9, 0.28) 0%, transparent 42%, rgba(7, 48, 82, 0.34) 100%);
+  pointer-events: none;
   z-index: 0;
 }
 
@@ -241,4 +260,14 @@ h4,
   border: 4px solid #1e293b;
   border-radius: 12px 24px 12px 24px / 24px 12px 24px 12px;
   box-shadow: 0 4px 0 #1e293b;
+}
+
+/* Stableford ranking: brief gold flash when a player's points change. */
+@keyframes ranking-row-flash {
+  0%   { background-color: rgba(251, 188, 5, 0.28); box-shadow: inset 0 0 0 1px rgba(251, 188, 5, 0.6); }
+  60%  { background-color: rgba(251, 188, 5, 0.10); box-shadow: inset 0 0 0 1px rgba(251, 188, 5, 0.3); }
+  100% { background-color: transparent;             box-shadow: inset 0 0 0 1px transparent; }
+}
+.ranking-row-flash {
+  animation: ranking-row-flash 1.2s ease-out;
 }

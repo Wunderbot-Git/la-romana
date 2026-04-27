@@ -100,6 +100,10 @@ export interface Tee {
     id?: string;
     name: string;
     holes: Hole[];
+    /** USGA slope rating (typically 55-155). Optional until set by organizer. */
+    slopeRating?: number | null;
+    /** USGA course rating (typically 65-77). Optional until set by organizer. */
+    courseRating?: number | null;
 }
 
 export interface Course {
@@ -203,6 +207,42 @@ export interface AssignPlayerRequest {
     playerId: string;
     team: 'red' | 'blue';
     position: 1 | 2;
+}
+
+/** Per-round flight assignment (junction row in `player_flights`). */
+export interface PlayerFlight {
+    id: string;
+    playerId: string;
+    roundId: string;
+    flightId: string;
+    team: 'red' | 'blue';
+    position: 1 | 2;
+    createdAt: string;
+}
+
+/** Body for tee slope/rating PATCH. */
+export interface UpdateTeeRatingRequest {
+    slopeRating: number | null;
+    courseRating: number | null;
+}
+
+/** Per-player playing-handicap snapshot for a given round. */
+export interface PlayingHandicap {
+    playerId: string;
+    playerName: string;
+    handicapIndex: number;
+    teeId: string | null;
+    teeName: string | null;
+    /** Sum of par across the holes of the chosen tee. */
+    coursePar: number | null;
+    slopeRating: number | null;
+    courseRating: number | null;
+    /** USGA Course Handicap (rounded). null if slope/rating missing. */
+    courseHandicap: number | null;
+    /** Course HCP × singles allowance, rounded, capped 36. null if courseHandicap null. */
+    playingHcpSingles: number | null;
+    /** Course HCP × fourball allowance, rounded, capped 36. null if courseHandicap null. */
+    playingHcpFourball: number | null;
 }
 
 // =============================================

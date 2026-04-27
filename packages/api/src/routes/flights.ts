@@ -2,7 +2,9 @@ import { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/auth';
 import { isOrganizer } from '../repositories/eventMemberRepository';
 import * as flightService from '../services/flightService';
-import { CreateFlightsRequest, AssignPlayerRequest, FlightWithPlayers, Flight } from '@ryder-cup/shared';
+import * as playerFlightRepo from '../repositories/playerFlightRepository';
+import { invalidateLeaderboardCache } from '../services/leaderboardService';
+import { CreateFlightsRequest, AssignPlayerRequest, FlightWithPlayers, Flight, PlayerFlight } from '@ryder-cup/shared';
 import { requireFlightAccess } from '../middleware/authExtensions';
 
 export const flightRoutes = async (fastify: FastifyInstance) => {
@@ -107,6 +109,83 @@ export const flightRoutes = async (fastify: FastifyInstance) => {
             const flight = await flightService.getFlightById(flightId);
             if (!flight) return reply.status(404).send({ error: 'Flight not found' });
             return flight;
+        }
+    );
+
+    // -------------------------------------------------------------------------
+    // Per-round flight composition (migration 025) — uses player_flights junction.
+    // Use these endpoints from the per-round Admin "Compose Flights" page so that
+    // a player can be in flight A on Round 1 and flight B on Round 2.
+    // -------------------------------------------------------------------------
+
+    // Assign player to a flight slot for a SPECIFIC round (Organizer Only)
+    fastify.post<{
+        Params: { eventId: string; roundId: string; flightId: string };
+        Body: AssignPlayerRequest;
+        Reply: PlayerFlight | { error: string };
+    }>(
+        '/events/:eventId/rounds/:roundId/flights/:flightId/assign',
+        { onRequest: [authenticate] },
+        async (request, reply) => {
+            const { eventId, roundId, flightId } = request.params;
+            const user = request.user as { userId: string };
+            if (!(await isOrganizer(eventId, user.userId))) {
+                return reply.status(403).send({ error: 'Only organizers can assign players' });
+            }
+            try {
+                const result = await playerFlightRepo.assignPlayer({
+                    playerId: request.body.playerId,
+                    roundId,
+                    flightId,
+                    team: request.body.team,
+                    position: request.body.position,
+                });
+                invalidateLeaderboardCache(eventId);
+                return result;
+            } catch (err: any) {
+                return reply.status(400).send({ error: err.message });
+            }
+        }
+    );
+
+    // Unassign player from a SPECIFIC round (removes their `player_flights` row).
+    fastify.post<{
+        Params: { eventId: string; roundId: string; flightId: string };
+        Body: { playerId: string };
+        Reply: { removed: boolean } | { error: string };
+    }>(
+        '/events/:eventId/rounds/:roundId/flights/:flightId/unassign',
+        { onRequest: [authenticate] },
+        async (request, reply) => {
+            const { eventId, roundId } = request.params;
+            const user = request.user as { userId: string };
+            if (!(await isOrganizer(eventId, user.userId))) {
+                return reply.status(403).send({ error: 'Only organizers can unassign players' });
+            }
+            try {
+                const removed = await playerFlightRepo.unassignPlayer(request.body.playerId, roundId);
+                invalidateLeaderboardCache(eventId);
+                return { removed };
+            } catch (err: any) {
+                return reply.status(400).send({ error: err.message });
+            }
+        }
+    );
+
+    // List all per-round assignments for a round (Organizer Only — used by composer UI).
+    fastify.get<{
+        Params: { eventId: string; roundId: string };
+        Reply: PlayerFlight[] | { error: string };
+    }>(
+        '/events/:eventId/rounds/:roundId/assignments',
+        { onRequest: [authenticate] },
+        async (request, reply) => {
+            const { eventId, roundId } = request.params;
+            const user = request.user as { userId: string };
+            if (!(await isOrganizer(eventId, user.userId))) {
+                return reply.status(403).send({ error: 'Only organizers can view assignments' });
+            }
+            return await playerFlightRepo.getRoundAssignments(roundId);
         }
     );
 };

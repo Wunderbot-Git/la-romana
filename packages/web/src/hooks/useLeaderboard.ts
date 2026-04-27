@@ -7,6 +7,12 @@ export interface MatchPlayer {
     id: string;
     name: string;
     hcp: number;
+    /** Playing Handicap for singles match (course-aware, allowance-applied). */
+    playingHcpSingles?: number;
+    /** Playing Handicap for fourball match. */
+    playingHcpFourball?: number;
+    /** This player's per-hole Stroke Index list (1=hardest), 18 entries, based on their tee. */
+    strokeIndexes?: number[];
 }
 
 export interface MatchHoleDetail {
@@ -67,6 +73,26 @@ export interface RyderTeamStanding {
     roundsPlayed: number;
 }
 
+export interface StablefordHoleDetail {
+    holeNumber: number;
+    par: number;
+    grossScore: number | null;
+    strokes: number;
+    netScore: number | null;
+    points: number;
+}
+
+export interface StablefordRoundBreakdown {
+    roundNumber: number;
+    courseName: string;
+    stablefordPoints: number;
+    ryderIndividualPoints: number;
+    /** Per-hole detail when this round was played (else undefined). */
+    holes?: StablefordHoleDetail[];
+    /** Course-aware Playing Handicap used for Stableford this round. */
+    playingHandicap?: number;
+}
+
 export interface StablefordStanding {
     playerId: string;
     playerName: string;
@@ -75,6 +101,8 @@ export interface StablefordStanding {
     stablefordCumulative: number;
     ryderIndividualCumulative: number;
     roundsPlayed: number;
+    /** Per-round breakdown sorted by roundNumber. */
+    byRound?: StablefordRoundBreakdown[];
 }
 
 export interface NetoPotWinnerSummary {

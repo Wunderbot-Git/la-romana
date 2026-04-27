@@ -1,55 +1,84 @@
 # cloudbuild.yaml — La Romana 2026
 #
-# Deploys to a NEW GCP project separate from the Bogotá app.
+# Builds + deploys both the API and Web containers to Cloud Run.
 # Service names: la-romana-api, la-romana-web.
 #
-# Required substitutions (pass via gcloud builds submit --substitutions= or Cloud Build trigger):
-#   _API_URL        — public URL of the deployed API (e.g. https://la-romana-api-xxx.run.app)
-#   _DATABASE_URL   — Cloud SQL connection string (postgresql://...)
-#   _JWT_SECRET     — JWT signing secret
+# Two-pass model is gone; this config now bakes the production API URL into
+# the web container directly via the substitution default.
 #
-# Example invocation (once $PROJECT_ID is set to the new La Romana GCP project):
-#   gcloud builds submit --substitutions=_API_URL=https://TBD,_DATABASE_URL=$DATABASE_URL,_JWT_SECRET=$JWT_SECRET
+# Substitutions (with sensible defaults — override via trigger or CLI):
+#   _API_URL              public URL of the deployed API (default = current prod URL)
+#   _CLOUDSQL_INSTANCE    Cloud SQL connection name (default = la-romana-2026:us-central1:la-romana-db)
+#
+# Secrets (pulled from Secret Manager via availableSecrets — no plaintext substitution):
+#   DATABASE_URL    secret://projects/la-romana-2026/secrets/database-url/versions/latest
+#   JWT_SECRET      secret://projects/la-romana-2026/secrets/jwt-secret/versions/latest
+#
+# Manual trigger:
+#   gcloud builds submit --config cloudbuild.yaml
+# Auto trigger:
+#   GitHub push to main → Cloud Build trigger → this config runs.
+
+substitutions:
+  _API_URL: 'https://la-romana-api-r7d222zdqa-uc.a.run.app'
+  _CLOUDSQL_INSTANCE: 'la-romana-2026:us-central1:la-romana-db'
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/la-romana-2026/secrets/database-url/versions/latest
+      env: DATABASE_URL
+    - versionName: projects/la-romana-2026/secrets/jwt-secret/versions/latest
+      env: JWT_SECRET
 
 steps:
-  # 1. Build the API image
+  # 1. Build API image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'gcr.io/$PROJECT_ID/la-romana-api', '-f', 'Dockerfile.api', '.']
 
-  # 2. Build the Web image
+  # 2. Build Web image with API URL baked in at build time
   - name: 'gcr.io/cloud-builders/docker'
-    args: [
-      'build',
-      '-t', 'gcr.io/$PROJECT_ID/la-romana-web',
-      '--build-arg', 'NEXT_PUBLIC_API_URL=$_API_URL',
-      '-f', 'Dockerfile.web',
-      '.'
-    ]
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/la-romana-web'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_API_URL=$_API_URL'
+      - '-f'
+      - 'Dockerfile.web'
+      - '.'
 
-  # 3. Push the API image
+  # 3. Push API image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/la-romana-api']
 
-  # 4. Push the Web image
+  # 4. Push Web image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/la-romana-web']
 
-  # 5. Deploy API to Cloud Run
+  # 5. Deploy API to Cloud Run.
+  #    Cloud SQL is mounted via --add-cloudsql-instances (DATABASE_URL uses
+  #    the unix-socket path host=/cloudsql/INSTANCE, which only works with this flag).
+  #    Secrets are injected via env-var substitution at deploy time.
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
+    entrypoint: bash
+    secretEnv: ['DATABASE_URL', 'JWT_SECRET']
     args:
-      - 'run'
-      - 'deploy'
-      - 'la-romana-api'
-      - '--image'
-      - 'gcr.io/$PROJECT_ID/la-romana-api'
-      - '--region'
-      - 'us-central1'
-      - '--set-env-vars'
-      - 'DATABASE_URL=$_DATABASE_URL,JWT_SECRET=$_JWT_SECRET,NODE_ENV=production'
-      - '--allow-unauthenticated'
+      - '-c'
+      - |
+        gcloud run deploy la-romana-api \
+          --image gcr.io/$PROJECT_ID/la-romana-api \
+          --region us-central1 \
+          --platform managed \
+          --set-env-vars "DATABASE_URL=$$DATABASE_URL,JWT_SECRET=$$JWT_SECRET,NODE_ENV=production" \
+          --add-cloudsql-instances=$_CLOUDSQL_INSTANCE \
+          --memory=512Mi \
+          --cpu=1 \
+          --max-instances=3 \
+          --min-instances=0 \
+          --port=8080 \
+          --allow-unauthenticated
 
-  # 6. Deploy Web to Cloud Run
+  # 6. Deploy Web to Cloud Run (no Cloud SQL needed — only talks to the API).
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -60,11 +89,22 @@ steps:
       - 'gcr.io/$PROJECT_ID/la-romana-web'
       - '--region'
       - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--memory=512Mi'
+      - '--cpu=1'
+      - '--max-instances=3'
+      - '--min-instances=0'
+      - '--port=3000'
       - '--allow-unauthenticated'
 
 images:
   - 'gcr.io/$PROJECT_ID/la-romana-api'
   - 'gcr.io/$PROJECT_ID/la-romana-web'
 
+# Web builds (Next.js + standalone) take 5-7 min on the heavier machine.
+timeout: '1800s'
+
 options:
   logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8

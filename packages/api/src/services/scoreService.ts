@@ -58,11 +58,14 @@ export const validateFlightInRound = async (flightId: string, roundId: string): 
     if (res.rows.length === 0) throw new Error('Flight does not belong to this round');
 };
 
-/** Player must be assigned to the flight (organizer override: allow if player exists). */
+/** Player must be assigned to the flight (per-round junction; organizer override: allow if player exists). */
 export const validatePlayerInFlight = async (playerId: string, flightId: string): Promise<void> => {
     const pool = getPool();
     const res = await pool.query(
-        `SELECT id FROM players WHERE id = $1 AND flight_id = $2`,
+        `SELECT pf.id
+         FROM player_flights pf
+         WHERE pf.player_id = $1 AND pf.flight_id = $2
+         LIMIT 1`,
         [playerId, flightId]
     );
     if (res.rows.length === 0) {
@@ -174,9 +177,18 @@ export const getFlightScoreboardData = async (flightId: string) => {
     if (flightRes.rows.length === 0) throw new Error('Flight not found');
     const flight = flightRes.rows[0];
 
+    // Use per-round junction (`player_flights`) so the same player can appear on
+    // different flights / different teams in different rounds. team + position
+    // come from the junction, NOT the legacy `players.team`/`position` columns.
     const playersRes = await pool.query(
-        `SELECT id, first_name, last_name, handicap_index, team, position, tee_id
-         FROM players WHERE flight_id = $1 ORDER BY team, position`,
+        `SELECT
+            p.id, p.first_name, p.last_name, p.handicap_index, p.tee_id,
+            pf.team     AS team,
+            pf.position AS position
+         FROM player_flights pf
+         JOIN players p ON p.id = pf.player_id
+         WHERE pf.flight_id = $1
+         ORDER BY pf.team, pf.position`,
         [flightId]
     );
     const redPlayers = playersRes.rows.filter((p: any) => p.team === 'red');

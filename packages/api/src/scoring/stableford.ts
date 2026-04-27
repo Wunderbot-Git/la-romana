@@ -49,10 +49,21 @@ export interface StablefordRoundInput {
     pars: number[];
     /** Stroke index per hole (18 entries). */
     strokeIndexes: number[];
-    /** Player's handicap index (course handicap before allowance). */
+    /** Player's handicap index (raw, pre-allowance). Used as fallback when no
+     *  pre-computed playing handicap is supplied. */
     handicapIndex: number;
-    /** Handicap allowance (0.80 for La Romana singles/fourball). */
+    /** Handicap allowance (e.g. 0.80). Used in fallback path only. */
     allowance?: number;
+    /**
+     * Pre-computed Playing Handicap for this player on THIS course (USGA Course HCP
+     * × allowance). When provided, it's used directly and `handicapIndex` + `allowance`
+     * are ignored for the stroke allocation.
+     *
+     * Pass this from leaderboardService where `computePlayingHandicapFromIndex` has
+     * access to slope/rating/par + round allowance — keeps Stableford on the same
+     * course-aware pipeline as singles/fourball.
+     */
+    playingHandicap?: number;
 }
 
 export interface StablefordRoundResult {
@@ -73,6 +84,7 @@ export const calculateStablefordRound = (
         strokeIndexes,
         handicapIndex,
         allowance = SINGLES_FOURBALL_ALLOWANCE,
+        playingHandicap: presetPH,
     } = input;
 
     if (grossScores.length !== 18 || pars.length !== 18 || strokeIndexes.length !== 18) {
@@ -81,7 +93,12 @@ export const calculateStablefordRound = (
         );
     }
 
-    const playingHandicap = calculatePlayingHandicap(handicapIndex, allowance);
+    // Course-aware path: use the pre-computed Playing Handicap (factors in slope/rating).
+    // Fallback to legacy `index × allowance` if not supplied.
+    const playingHandicap =
+        presetPH !== undefined
+            ? presetPH
+            : calculatePlayingHandicap(handicapIndex, allowance);
 
     const holes: HoleStablefordPoints[] = grossScores.map((gross, i) => {
         const par = pars[i];

@@ -50,12 +50,15 @@ export interface FlightWithPlayers {
     createdAt: string;
     players: Array<{
         id: string;
+        userId: string | null;
         firstName: string;
         lastName: string;
         handicapIndex: number;
         team: 'red' | 'blue' | null;
         position: number | null;
         flightId: string | null;
+        playingHcpSingles?: number;
+        playingHcpFourball?: number;
     }>;
 }
 

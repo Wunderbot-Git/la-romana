@@ -1,211 +1,238 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
 import { useMyEvents } from '@/hooks/useEvents';
+import { useRounds, useRoundFlights } from '@/hooks/useRounds';
 import { useFlightScores, useSubmitScores } from '@/hooks/useScores';
+import { ScoreGrid } from '@/components/ScoreGrid';
+
+// Modal is portal-rendered → load only client-side
+const ScoreEntryModal = dynamic(
+    () => import('@/components/ScoreEntryModal').then(m => ({ default: m.ScoreEntryModal })),
+    { ssr: false },
+);
 
 export default function ScorePage() {
+    return (
+        <Suspense fallback={<div className="p-8 text-center text-white/60 font-fredoka">Cargando…</div>}>
+            <ScorePageInner />
+        </Suspense>
+    );
+}
+
+function ScorePageInner() {
     const router = useRouter();
     const params = useSearchParams();
-    const roundId = params.get('roundId');
-    const flightId = params.get('flightId');
+    const roundIdParam = params.get('roundId');
+    const flightIdParam = params.get('flightId');
 
+    const { user } = useAuth();
     const { events, isLoading: eventsLoading } = useMyEvents();
     const activeEvent = useMemo(() => {
         if (!events || events.length === 0) return null;
         return events.find(e => e.status === 'live') || events[0];
     }, [events]);
     const eventId = activeEvent?.id || '';
+    const isOrganizer = activeEvent?.role === 'organizer';
 
-    const { data: flight, isLoading, refetch } = useFlightScores(eventId, flightId);
-    const { submitBatchScores, isSubmitting, error } = useSubmitScores();
-
-    const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
-    const [draft, setDraft] = useState<Record<string, (number | null)[]>>({});
+    // ── Auto-resolve flight when params are missing ────────────────────────
+    // When a user lands on `/score` without ?roundId=&flightId= (e.g. via the
+    // BottomNav), pick the first non-completed round and find the user's
+    // flight in it; redirect once we know it. Organizers without a flight
+    // assignment fall through to /matches.
+    const { rounds, isLoading: roundsLoading } = useRounds(eventId);
+    const defaultRoundId = useMemo(() => {
+        if (rounds.length === 0) return null;
+        const active = rounds.find(r => r.state !== 'completed');
+        return (active ?? rounds[0]).id;
+    }, [rounds]);
+    const needsResolve = !flightIdParam || !roundIdParam;
+    const resolveRoundId = needsResolve ? defaultRoundId : null;
+    const { flights: resolverFlights, isLoading: resolverLoading } = useRoundFlights(eventId, resolveRoundId);
 
     useEffect(() => {
-        if (!flight) return;
-        const seed: Record<string, (number | null)[]> = {};
-        [...flight.redPlayers, ...flight.bluePlayers].forEach(p => {
-            seed[p.playerId] = p.scores.slice();
-        });
-        setDraft(seed);
-    }, [flight]);
+        if (!needsResolve) return;
+        if (resolverLoading || roundsLoading || eventsLoading) return;
+        if (!user || !resolveRoundId) return;
+        const myFlight = resolverFlights.find(f => f.players.some(p => p.userId === user.id));
+        if (myFlight) {
+            router.replace(`/score?roundId=${resolveRoundId}&flightId=${myFlight.id}`);
+        } else if (!isOrganizer) {
+            // Player has no flight in this round → send to Partidas to pick another
+            router.replace('/matches');
+        }
+        // Organizer w/o flight: leave the page in fallback state below — they can navigate.
+    }, [
+        needsResolve,
+        resolverLoading,
+        roundsLoading,
+        eventsLoading,
+        user,
+        resolveRoundId,
+        resolverFlights,
+        isOrganizer,
+        router,
+    ]);
 
-    if (!flightId || !roundId) {
+    const flightId = flightIdParam;
+    const roundId = roundIdParam;
+
+    const { data: flight, isLoading, refetch } = useFlightScores(eventId, flightId);
+    const { submitBatchScores, isSubmitting, error: submitError } = useSubmitScores();
+
+    const [openHole, setOpenHole] = useState<number | null>(null);
+    const [lastSavedHole, setLastSavedHole] = useState<number | null>(null);
+    const [half, setHalf] = useState<'front' | 'back'>('front');
+
+    // While auto-resolving, show a loader (not the fallback message)
+    if (needsResolve) {
+        if (eventsLoading || roundsLoading || resolverLoading) {
+            return <div className="p-8 text-center text-white/60 font-fredoka">Cargando tu partido…</div>;
+        }
+        // Reached: organizer with no flight (regular players already redirected to /matches)
         return (
-            <div className="p-8 text-center">
-                <p className="text-gray-500 mb-2">Falta el round o el grupo.</p>
-                <Link href="/matches" className="text-blue-600 underline">Volver a Partidas</Link>
+            <div className="min-h-screen p-8 text-center text-white/60 font-fredoka">
+                <p className="mb-3">Elige un grupo para ingresar scores.</p>
+                <Link href="/matches" className="font-bangers uppercase tracking-wider text-[#fbbc05]">
+                    Ir a Partidas
+                </Link>
             </div>
         );
     }
     if (eventsLoading || isLoading) {
-        return <div className="p-8 text-center text-gray-500">Cargando…</div>;
+        return <div className="p-8 text-center text-white/60 font-fredoka">Cargando…</div>;
     }
     if (!flight || !activeEvent) {
-        return <div className="p-8 text-center text-gray-500">Grupo no encontrado.</div>;
+        return <div className="p-8 text-center text-white/60 font-fredoka">Grupo no encontrado.</div>;
     }
 
-    const allPlayers = [...flight.redPlayers, ...flight.bluePlayers];
+    const allPlayers = [
+        ...flight.redPlayers.map(p => ({ ...p, team: 'red' as const })),
+        ...flight.bluePlayers.map(p => ({ ...p, team: 'blue' as const })),
+    ];
 
-    const setHoleScore = (playerId: string, holeIdx: number, value: number | null) => {
-        setDraft(prev => ({
-            ...prev,
-            [playerId]: prev[playerId]?.map((s, i) => (i === holeIdx ? value : s)) ?? [],
-        }));
+    const handleHoleClick = (hole: number) => {
+        // Auto-switch the displayed half so the user lands on the right side after closing the modal.
+        if (hole >= 10) setHalf('back');
+        else setHalf('front');
+        setOpenHole(hole);
     };
 
-    const saveAll = async () => {
-        const payload: { playerId: string; hole: number; score: number | null }[] = [];
-        for (const p of allPlayers) {
-            const current = flight.redPlayers.find(r => r.playerId === p.playerId)?.scores
-                ?? flight.bluePlayers.find(b => b.playerId === p.playerId)?.scores
-                ?? [];
-            const next = draft[p.playerId] ?? [];
-            for (let i = 0; i < 18; i++) {
-                if (current[i] !== next[i]) {
-                    payload.push({ playerId: p.playerId, hole: i + 1, score: next[i] });
-                }
-            }
-        }
-        if (payload.length === 0) return;
+    const handleSaveModal = async (newScores: Record<string, number | null>) => {
+        if (openHole === null) return;
+        if (!roundId || !flightId) return; // narrowed by early-return above; TS doesn't see it
+        const batch = Object.entries(newScores).map(([playerId, score]) => ({
+            playerId,
+            hole: openHole,
+            score,
+        }));
         const ok = await submitBatchScores({
-            eventId: activeEvent.id,
+            eventId,
             roundId,
             flightId,
-            scores: payload,
+            scores: batch,
         });
         if (ok) {
-            await refetch();
-            setEditingPlayer(null);
+            setLastSavedHole(openHole);
+            setOpenHole(null);
+            refetch();
         }
     };
 
-    const hasChanges = allPlayers.some(p => {
-        const current = p.scores;
-        const next = draft[p.playerId] ?? [];
-        return next.some((v, i) => v !== current[i]);
-    });
+    const initialScores = openHole
+        ? allPlayers.reduce<Record<string, number | null>>((acc, p) => {
+              acc[p.playerId] = p.scores[openHole - 1] ?? null;
+              return acc;
+          }, {})
+        : {};
+
+    const currentPar = openHole ? flight.parValues[openHole - 1] : 0;
+
+    const modalPlayers = allPlayers.map(p => ({
+        playerId: p.playerId,
+        playerName: p.playerName,
+        hcp: p.hcp,
+        team: p.team,
+    }));
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-24">
-            <header className="bg-white border-b sticky top-0 z-10">
-                <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-                    <div>
-                        <Link href="/matches" className="text-sm text-blue-600">&larr; Partidas</Link>
-                        <h1 className="text-lg font-bold">{flight.flightName}</h1>
+        <div className="relative z-[1] flex h-[100dvh] flex-col overflow-hidden pb-24">
+            {/* Header */}
+            <header className="border-b border-[#31316b] bg-[#0f172b]/95 px-4 py-3">
+                <div className="flex items-center justify-between">
+                    <Link href="/matches" className="font-bangers text-xs uppercase tracking-wider text-[#fbbc05]">
+                        ← Partidas
+                    </Link>
+                    <div className="text-center">
+                        <div className="font-bangers text-[10px] uppercase tracking-widest text-white/55">
+                            {flight.flightName}
+                        </div>
                     </div>
-                    <button
-                        onClick={saveAll}
-                        disabled={!hasChanges || isSubmitting}
-                        className={`px-4 py-2 rounded-md text-sm font-medium ${
-                            hasChanges && !isSubmitting
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        }`}
-                    >
-                        {isSubmitting ? 'Guardando…' : 'Guardar'}
-                    </button>
+                    <div className="w-16" />
                 </div>
-                {error && <div className="bg-red-50 text-red-600 text-sm px-4 py-2">{error}</div>}
             </header>
 
-            <main className="max-w-3xl mx-auto px-4 py-4">
-                <div className="mb-4 text-sm text-gray-600">
-                    <span className="font-medium">Fourball:</span> {flight.fourballStatus}
+            {/* Save indicator */}
+            {isSubmitting && (
+                <div className="bg-[#fbbc05]/15 px-4 py-1 text-center font-fredoka text-xs text-[#fbbc05]">
+                    Guardando…
                 </div>
+            )}
+            {submitError && (
+                <div className="border-b border-rose-700 bg-rose-900/85 px-4 py-2 text-center font-fredoka text-xs text-white">
+                    <span className="font-bold">Error:</span> {submitError}
+                </div>
+            )}
 
-                <div className="space-y-6">
-                    {['red', 'blue'].map(team => (
-                        <div key={team}>
-                            <h2 className={`text-sm font-bold uppercase mb-2 ${team === 'red' ? 'text-team-red' : 'text-team-blue'}`}>
-                                {team}
-                            </h2>
-                            <div className="space-y-3">
-                                {(team === 'red' ? flight.redPlayers : flight.bluePlayers).map(p => (
-                                    <PlayerScoreCard
-                                        key={p.playerId}
-                                        player={p}
-                                        pars={flight.parValues}
-                                        draft={draft[p.playerId] ?? []}
-                                        onSet={(i, v) => setHoleScore(p.playerId, i, v)}
-                                        expanded={editingPlayer === p.playerId}
-                                        onToggle={() =>
-                                            setEditingPlayer(editingPlayer === p.playerId ? null : p.playerId)
-                                        }
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-                </div>
+            {/* Half toggle */}
+            <div className="flex gap-2 px-4 pt-3 pb-2">
+                <button
+                    onClick={() => setHalf('front')}
+                    className={`flex-1 rounded-[12px] border-[2px] py-2 font-bangers text-xs uppercase tracking-wider transition-colors ${
+                        half === 'front'
+                            ? 'border-[#1e293b] bg-gradient-to-b from-[#fce8b2] via-[#fbbc05] to-[#e37400] text-[#1e293b] shadow-[0_3px_0_#1e293b]'
+                            : 'border-[#31316b] bg-[#0f172b]/70 text-white/65 hover:text-white'
+                    }`}
+                >
+                    Hoyos 1–9
+                </button>
+                <button
+                    onClick={() => setHalf('back')}
+                    className={`flex-1 rounded-[12px] border-[2px] py-2 font-bangers text-xs uppercase tracking-wider transition-colors ${
+                        half === 'back'
+                            ? 'border-[#1e293b] bg-gradient-to-b from-[#fce8b2] via-[#fbbc05] to-[#e37400] text-[#1e293b] shadow-[0_3px_0_#1e293b]'
+                            : 'border-[#31316b] bg-[#0f172b]/70 text-white/65 hover:text-white'
+                    }`}
+                >
+                    Hoyos 10–18
+                </button>
+            </div>
+
+            <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <ScoreGrid
+                    flightScore={flight}
+                    onHoleClick={handleHoleClick}
+                    scrollToHole={lastSavedHole}
+                    half={half}
+                />
             </main>
-        </div>
-    );
-}
 
-function PlayerScoreCard({
-    player,
-    pars,
-    draft,
-    onSet,
-    expanded,
-    onToggle,
-}: {
-    player: { playerId: string; playerName: string; hcp: number; singlesStatus: string | null };
-    pars: number[];
-    draft: (number | null)[];
-    onSet: (holeIdx: number, value: number | null) => void;
-    expanded: boolean;
-    onToggle: () => void;
-}) {
-    const total = draft.reduce<number>((a, v) => a + (v ?? 0), 0);
-    const parTotal = pars.reduce<number>((a, v) => a + v, 0);
-
-    return (
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-            <button
-                onClick={onToggle}
-                className="w-full px-4 py-3 flex items-center justify-between"
-            >
-                <div className="flex-1 text-left">
-                    <div className="font-medium">
-                        {player.playerName} <span className="text-gray-400 text-sm">HCP {player.hcp}</span>
-                    </div>
-                    {player.singlesStatus && (
-                        <div className="text-xs text-gray-500">Singles: {player.singlesStatus}</div>
-                    )}
-                </div>
-                <div className="text-right">
-                    <div className="font-bold text-lg">{total || '—'}</div>
-                    <div className="text-xs text-gray-500">Par {parTotal}</div>
-                </div>
-            </button>
-            {expanded && (
-                <div className="border-t px-2 py-3">
-                    <div className="grid grid-cols-9 gap-1 text-xs">
-                        {Array.from({ length: 18 }).map((_, i) => (
-                            <div key={i} className="flex flex-col items-center">
-                                <div className="text-gray-400">{i + 1}</div>
-                                <div className="text-gray-500 text-[10px]">P{pars[i] ?? '-'}</div>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="15"
-                                    value={draft[i] ?? ''}
-                                    onChange={(e) => {
-                                        const v = e.target.value === '' ? null : Number(e.target.value);
-                                        onSet(i, Number.isFinite(v) && (v as number) > 0 ? (v as number) : null);
-                                    }}
-                                    className="w-10 h-10 text-center border border-gray-300 rounded text-sm"
-                                />
-                            </div>
-                        ))}
-                    </div>
-                </div>
+            {openHole !== null && (
+                <ScoreEntryModal
+                    isOpen={true}
+                    holeNumber={openHole}
+                    par={currentPar}
+                    players={modalPlayers}
+                    initialScores={initialScores}
+                    onSave={handleSaveModal}
+                    onClose={() => setOpenHole(null)}
+                    isSaving={isSubmitting}
+                    error={submitError}
+                />
             )}
         </div>
     );

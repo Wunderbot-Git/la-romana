@@ -1,11 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
 const ADMIN_PASSWORD = 'Qayedc-1';
 const ADMIN_KEY = 'admin_authenticated';
+
+const CARD_DARK =
+    'bg-gradient-to-b from-[#1c2f3e] to-[#0f172b] border-[2px] border-[#31316b] rounded-[16px] shadow-[0_4px_12px_rgba(0,0,0,0.5)]';
+const INPUT_DARK =
+    'w-full rounded-[10px] border-[2px] border-[#31316b] bg-[#0a1322] px-3 py-2 ' +
+    'font-fredoka text-sm text-white outline-none focus:border-[#fbbc05]';
+const PILL_PRIMARY =
+    'rounded-full border-[2px] border-[#1e293b] bg-gradient-to-b from-[#fce8b2] via-[#fbbc05] to-[#e37400] ' +
+    'px-4 py-2 font-bangers text-xs uppercase tracking-wider text-[#1e293b] shadow-[0_3px_0_#1e293b] disabled:opacity-50';
+const PILL_GHOST =
+    'rounded-full border-[2px] border-[#31316b] bg-[#0f172b]/70 px-4 py-2 ' +
+    'font-bangers text-xs uppercase tracking-wider text-white/75 hover:text-white disabled:opacity-50';
 
 interface Player {
     id: string;
@@ -31,7 +43,15 @@ interface Course {
     tees: Tee[];
 }
 
-function EditPlayerModal({ player, tees, eventId, onSaved, onClose }: {
+// ─── Edit Player Modal ──────────────────────────────────────────────────────
+
+function EditPlayerModal({
+    player,
+    tees,
+    eventId,
+    onSaved,
+    onClose,
+}: {
     player: Player;
     tees: Tee[];
     eventId: string;
@@ -51,7 +71,7 @@ function EditPlayerModal({ player, tees, eventId, onSaved, onClose }: {
             setError('Handicap debe estar entre -10 y 54');
             return;
         }
-        if (!firstName.trim() || !lastName.trim()) {
+        if (!firstName.trim()) {
             setError('El nombre no puede estar vacío');
             return;
         }
@@ -74,55 +94,54 @@ function EditPlayerModal({ player, tees, eventId, onSaved, onClose }: {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative bg-cream w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-xl gold-border p-5 pb-8 sm:pb-5">
-                <h3 className="text-base font-bangers text-forest-deep mb-4">Editar Jugador</h3>
+        <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center">
+            <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
+            <div className={`relative w-full ${CARD_DARK} sm:max-w-md rounded-t-[20px] sm:rounded-[20px] p-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)]`}>
+                <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-white/15 sm:hidden" />
+                <h3 className="mb-4 font-bangers text-base uppercase tracking-wider text-white">Editar Jugador</h3>
 
                 <div className="space-y-3">
-                    <div>
-                        <label className="block text-xs font-bangers text-forest-deep/60 uppercase mb-1">Nombre</label>
+                    <Field label="Nombre">
                         <input
                             type="text"
                             value={firstName}
-                            onChange={(e) => setFirstName(e.target.value)}
-                            className="w-full px-3 py-2 border-2 border-gold-border/30 rounded-lg text-sm font-fredoka text-forest-deep focus:outline-none focus:ring-2 focus:ring-gold-border/50"
+                            onChange={e => setFirstName(e.target.value)}
+                            className={INPUT_DARK}
                             autoFocus
                         />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bangers text-forest-deep/60 uppercase mb-1">Apellido</label>
+                    </Field>
+                    <Field label="Apellido">
                         <input
                             type="text"
                             value={lastName}
-                            onChange={(e) => setLastName(e.target.value)}
-                            className="w-full px-3 py-2 border-2 border-gold-border/30 rounded-lg text-sm font-fredoka text-forest-deep focus:outline-none focus:ring-2 focus:ring-gold-border/50"
+                            onChange={e => setLastName(e.target.value)}
+                            className={INPUT_DARK}
                         />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bangers text-forest-deep/60 uppercase mb-1">Handicap</label>
+                    </Field>
+                    <Field label="Handicap">
                         <input
                             type="number"
                             step="0.1"
                             min="-10"
                             max="54"
                             value={handicap}
-                            onChange={(e) => setHandicap(e.target.value)}
-                            className="w-full px-3 py-2 border-2 border-gold-border/30 rounded-lg text-sm font-fredoka text-forest-deep focus:outline-none focus:ring-2 focus:ring-gold-border/50"
+                            onChange={e => setHandicap(e.target.value)}
+                            className={INPUT_DARK}
                         />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bangers text-forest-deep/60 uppercase mb-1">Tee</label>
+                    </Field>
+                    <Field label="Tee (default)">
                         <select
                             value={teeId}
-                            onChange={(e) => setTeeId(e.target.value)}
-                            className="w-full px-3 py-2 border-2 border-gold-border/30 rounded-lg text-sm font-fredoka text-forest-deep focus:outline-none focus:ring-2 focus:ring-gold-border/50 bg-white"
+                            onChange={e => setTeeId(e.target.value)}
+                            className={INPUT_DARK}
                         >
                             {tees.map(t => (
-                                <option key={t.id} value={t.id}>{t.name}</option>
+                                <option key={t.id} value={t.id} className="bg-[#0a1322]">
+                                    {t.name}
+                                </option>
                             ))}
                         </select>
-                    </div>
+                    </Field>
                 </div>
 
                 {player.userId && (
@@ -140,35 +159,38 @@ function EditPlayerModal({ player, tees, eventId, onSaved, onClose }: {
                                 setSaving(false);
                             }
                         }}
-                        className="w-full mt-3 py-2 text-xs font-bangers text-brass bg-gold-light/20 border border-gold-border/30 rounded-xl hover:bg-gold-light/30 transition-colors"
+                        className="mt-3 w-full rounded-[12px] border border-rose-500/40 bg-rose-900/20 py-2 font-bangers text-xs uppercase tracking-wider text-rose-300 hover:bg-rose-900/30 disabled:opacity-50"
                         disabled={saving}
                     >
                         Desvincular cuenta
                     </button>
                 )}
 
-                {error && <p className="text-team-red text-xs mt-3 font-fredoka">{error}</p>}
+                {error && <p className="mt-3 font-fredoka text-xs text-rose-300">{error}</p>}
 
-                <div className="flex gap-3 mt-5">
-                    <button
-                        onClick={onClose}
-                        className="flex-1 py-2.5 text-sm font-bangers text-forest-deep/60 bg-forest-deep/5 rounded-xl hover:bg-forest-deep/10 transition-colors border border-gold-border/20"
-                        disabled={saving}
-                    >
+                <div className="mt-5 flex gap-3">
+                    <button onClick={onClose} className={`flex-1 ${PILL_GHOST}`} disabled={saving}>
                         Cancelar
                     </button>
-                    <button
-                        onClick={handleSave}
-                        className="flex-1 py-2.5 text-sm font-bangers bevel-button rounded-xl disabled:opacity-50"
-                        disabled={saving}
-                    >
-                        {saving ? 'Guardando...' : 'Guardar'}
+                    <button onClick={handleSave} className={`flex-1 ${PILL_PRIMARY}`} disabled={saving}>
+                        {saving ? 'Guardando…' : 'Guardar'}
                     </button>
                 </div>
             </div>
         </div>
     );
 }
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <label className="block">
+            <span className="mb-1 block font-bangers text-[10px] uppercase tracking-wider text-white/65">{label}</span>
+            {children}
+        </label>
+    );
+}
+
+// ─── Admin Login Gate ───────────────────────────────────────────────────────
 
 function AdminLoginGate({ onAuthenticated }: { onAuthenticated: () => void }) {
     const [password, setPassword] = useState('');
@@ -187,16 +209,16 @@ function AdminLoginGate({ onAuthenticated }: { onAuthenticated: () => void }) {
 
         try {
             setLoading(true);
-            // Log in as admin user to get a JWT with admin privileges
+            // Log in as the LR organizer to get a JWT with admin privileges.
             const res = await api.post<{ token: string }>('/auth/login', {
-                email: 'organizer@par00.com',
+                email: 'organizer@laromana.golf',
                 password: 'Par00',
             });
             api.setToken(res.token);
             sessionStorage.setItem(ADMIN_KEY, 'true');
             onAuthenticated();
         } catch {
-            // Fallback: accept admin password even if API login fails
+            // Fallback: accept admin password even if API login fails.
             sessionStorage.setItem(ADMIN_KEY, 'true');
             onAuthenticated();
         } finally {
@@ -205,52 +227,56 @@ function AdminLoginGate({ onAuthenticated }: { onAuthenticated: () => void }) {
     };
 
     return (
-        <div className="min-h-screen flex flex-col">
-            <header className="bg-forest-deep text-cream px-4 py-3 flex items-center justify-between gold-border">
+        <div className="relative z-[1] flex min-h-full flex-col pb-24">
+            <header className="flex items-baseline justify-between px-4 pt-6 pb-4">
                 <div>
-                    <h1 className="text-lg font-bangers metallic-text uppercase tracking-wider">Acceso Admin</h1>
-                    <p className="text-[10px] text-cream/50 uppercase tracking-widest font-fredoka">Autenticación requerida</p>
+                    <div className="font-bangers text-[11px] uppercase tracking-[0.22em] text-[#fbbc05]/85">Acceso Admin</div>
+                    <div
+                        className="font-bangers text-[36px] leading-[0.95] tracking-wide text-white"
+                        style={{
+                            WebkitTextStroke: '1.5px #07101b',
+                            textShadow: '0 3px 0 rgba(7,16,27,0.85), 0 0 18px rgba(240,200,80,0.18)',
+                        }}
+                    >
+                        Login
+                    </div>
                 </div>
-                <button
-                    onClick={() => router.back()}
-                    className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors font-fredoka text-cream"
-                >
+                <button onClick={() => router.back()} className={PILL_GHOST}>
                     Volver
                 </button>
             </header>
-            <div className="flex-1 flex items-center justify-center p-4">
-                <form onSubmit={handleSubmit} className="bg-cream/90 backdrop-blur-sm gold-border rounded-2xl p-6 w-full max-w-sm">
-                    <div className="text-center mb-6">
-                        <div className="w-12 h-12 bg-forest-deep/10 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-gold-border/30">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-forest-deep">
-                                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+
+            <main className="flex flex-1 items-start justify-center px-4 pt-6">
+                <form onSubmit={handleSubmit} className={`${CARD_DARK} w-full max-w-sm p-6`}>
+                    <div className="mb-5 text-center">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#fbbc05]/40 bg-[#fbbc05]/10">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbbc05" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                             </svg>
                         </div>
-                        <h2 className="text-lg font-bangers text-forest-deep">Login Admin</h2>
-                        <p className="text-xs text-forest-deep/50 mt-1 font-fredoka">Ingresa la contraseña para continuar</p>
+                        <h2 className="font-bangers text-lg uppercase tracking-wider text-white">Login Admin</h2>
+                        <p className="mt-1 font-fredoka text-xs text-white/55">Ingresa la contraseña para continuar</p>
                     </div>
                     <input
                         type="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={e => setPassword(e.target.value)}
                         placeholder="Contraseña"
-                        className="w-full px-4 py-3 border-2 border-gold-border/30 rounded-xl text-sm font-fredoka text-forest-deep focus:outline-none focus:ring-2 focus:ring-gold-border/50 mb-3"
+                        className={`${INPUT_DARK} mb-3`}
                         autoFocus
                     />
-                    {error && <p className="text-team-red text-xs text-center mb-3 font-fredoka">{error}</p>}
-                    <button
-                        type="submit"
-                        className="w-full py-3 bevel-button rounded-xl text-sm font-bangers disabled:opacity-50"
-                        disabled={loading}
-                    >
-                        {loading ? 'Entrando...' : 'Entrar'}
+                    {error && <p className="mb-3 text-center font-fredoka text-xs text-rose-300">{error}</p>}
+                    <button type="submit" className={`w-full ${PILL_PRIMARY}`} disabled={loading}>
+                        {loading ? 'Entrando…' : 'Entrar'}
                     </button>
                 </form>
-            </div>
+            </main>
         </div>
     );
 }
+
+// ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function AdminPlayersPage() {
     const params = useParams();
@@ -276,7 +302,6 @@ export default function AdminPlayersPage() {
             setIsLoading(false);
             return;
         }
-
         const fetchData = async () => {
             try {
                 setIsLoading(true);
@@ -286,13 +311,12 @@ export default function AdminPlayersPage() {
                 ]);
                 setPlayers(playersData);
                 if (courseData) setTees(courseData.tees);
-            } catch (err) {
+            } catch {
                 setError('Error al cargar jugadores');
             } finally {
                 setIsLoading(false);
             }
         };
-
         fetchData();
     }, [eventId, authenticated]);
 
@@ -308,117 +332,125 @@ export default function AdminPlayersPage() {
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
-        alert('Link copiado al portapapeles!');
+        alert('Link copiado al portapapeles');
     };
 
-    const handlePlayerSaved = (updated: Player) => {
-        setPlayers(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
-    };
+    const handlePlayerSaved = (updated: Player) =>
+        setPlayers(prev => prev.map(p => (p.id === updated.id ? { ...p, ...updated } : p)));
 
-    const getTeeName = (teeId: string) => {
-        const tee = tees.find(t => t.id === teeId);
-        return tee ? tee.name : '—';
-    };
+    const getTeeName = (teeId: string) => tees.find(t => t.id === teeId)?.name ?? '—';
 
-    if (!authenticated) {
-        return <AdminLoginGate onAuthenticated={() => setAuthenticated(true)} />;
-    }
+    if (!authenticated) return <AdminLoginGate onAuthenticated={() => setAuthenticated(true)} />;
+    if (isLoading)
+        return <div className="p-8 text-center font-fredoka text-white/60">Cargando jugadores…</div>;
+    if (error)
+        return <div className="p-8 text-center font-fredoka text-rose-300">{error}</div>;
 
-    if (isLoading) return <div className="p-8 text-center font-fredoka text-cream/50">Cargando jugadores...</div>;
-    if (error) return <div className="p-8 text-center text-team-red font-fredoka">{error}</div>;
+    const redPlayers = players.filter(p => p.team === 'red').sort((a, b) => a.firstName.localeCompare(b.firstName));
+    const bluePlayers = players.filter(p => p.team === 'blue').sort((a, b) => a.firstName.localeCompare(b.firstName));
 
-    const redPlayers = players.filter(p => p.team === 'red');
-    const bluePlayers = players.filter(p => p.team === 'blue');
-
-    const renderTeamSection = (team: 'red' | 'blue', teamPlayers: Player[]) => (
-        <div className="mb-6">
-            <h2 className={`text-sm font-bangers uppercase tracking-widest px-4 py-2 rounded-t-xl ${team === 'red' ? 'text-team-red bg-team-red/10 border border-team-red/20' : 'text-team-blue bg-team-blue/10 border border-team-blue/20'}`}>
-                {team === 'red' ? 'Red' : 'Blue'} ({teamPlayers.length})
-            </h2>
-            <div className="bg-cream rounded-b-xl gold-border overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-forest-deep/5 border-b border-gold-border/20">
-                        <tr>
-                            <th className="px-4 py-3 text-xs font-bangers text-forest-deep/60 uppercase">Nombre</th>
-                            <th className="px-4 py-3 text-xs font-bangers text-forest-deep/60 uppercase text-center">HCP</th>
-                            <th className="px-4 py-3 text-xs font-bangers text-forest-deep/60 uppercase text-center">Tee</th>
-                            <th className="px-4 py-3 text-xs font-bangers text-forest-deep/60 uppercase text-center">Estado</th>
-                            <th className="px-4 py-3 text-xs font-bangers text-forest-deep/60 uppercase text-right">Invitación</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gold-border/10">
-                        {teamPlayers.map(player => (
-                            <tr key={player.id} className="hover:bg-forest-deep/5 cursor-pointer transition-colors" onClick={() => setEditingPlayer(player)}>
-                                <td className="px-4 py-3 text-sm font-fredoka font-bold text-forest-deep">
-                                    {player.firstName} {player.lastName}
-                                </td>
-                                <td className="px-4 py-3 text-center text-sm font-bangers text-brass">
-                                    {player.handicapIndex}
-                                </td>
-                                <td className="px-4 py-3 text-center text-xs text-forest-deep/50 font-fredoka">
-                                    {getTeeName(player.teeId)}
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                    {player.userId ? (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bangers bg-forest-deep/10 text-forest-deep">Vinculado</span>
-                                    ) : (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bangers bg-brass/10 text-brass">Pendiente</span>
-                                    )}
-                                </td>
-                                <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                                    {player.userId ? (
-                                        <span className="text-forest-deep/30 text-xs font-fredoka">Vinculado</span>
-                                    ) : generatedLinks[player.id] ? (
-                                        <div className="flex items-center justify-end gap-2">
-                                            <input
-                                                type="text"
-                                                readOnly
-                                                value={generatedLinks[player.id]}
-                                                className="text-xs p-1 border-2 border-gold-border/20 rounded w-28 bg-cream font-fredoka"
-                                            />
-                                            <button
-                                                onClick={() => copyToClipboard(generatedLinks[player.id])}
-                                                className="text-xs bg-forest-deep/10 hover:bg-forest-deep/20 px-2 py-1 rounded font-bangers text-forest-deep transition-colors"
-                                            >
-                                                Copiar
-                                            </button>
+    const renderTeamSection = (team: 'red' | 'blue', teamPlayers: Player[]) => {
+        const teamLabel = team === 'red' ? 'Piratas' : 'Fantasmas';
+        const headerClass =
+            team === 'red'
+                ? 'border-team-red/40 bg-team-red/15 text-team-red'
+                : 'border-team-blue/40 bg-team-blue/15 text-team-blue';
+        return (
+            <section className="mb-5">
+                <div className={`rounded-t-[14px] border-[2px] ${headerClass} px-4 py-2 font-bangers text-sm uppercase tracking-wider`}>
+                    {teamLabel} <span className="text-white/55">({teamPlayers.length})</span>
+                </div>
+                <div className={`${CARD_DARK} rounded-t-none border-t-0 overflow-hidden`}>
+                    {teamPlayers.length === 0 ? (
+                        <div className="px-4 py-6 text-center font-fredoka text-sm italic text-white/40">
+                            Ningún jugador asignado.
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-[#31316b]/40">
+                            {teamPlayers.map(player => {
+                                const link = generatedLinks[player.id];
+                                return (
+                                    <div
+                                        key={player.id}
+                                        onClick={() => setEditingPlayer(player)}
+                                        className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-[#0f172b]/60"
+                                    >
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-bangers text-base tracking-wider text-white truncate">
+                                                {player.firstName} {player.lastName}
+                                            </div>
+                                            <div className="mt-0.5 flex items-baseline gap-2 font-fredoka text-[11px] text-white/55">
+                                                <span>HCP <span className="text-[#fbbc05]">{player.handicapIndex}</span></span>
+                                                <span>·</span>
+                                                <span>Tee <span className="text-white/85">{getTeeName(player.teeId)}</span></span>
+                                            </div>
                                         </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => generateInvite(player.id)}
-                                            className="text-xs bg-forest-deep text-cream px-3 py-1.5 rounded-lg hover:bg-forest-mid transition-colors font-bangers"
-                                        >
-                                            Generar Link
-                                        </button>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
+                                        <div onClick={e => e.stopPropagation()} className="flex flex-col items-end gap-1">
+                                            {player.userId ? (
+                                                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-bangers text-[9px] uppercase tracking-wider text-emerald-300">
+                                                    Vinculado
+                                                </span>
+                                            ) : link ? (
+                                                <button
+                                                    onClick={() => copyToClipboard(link)}
+                                                    className="rounded-full border border-[#fbbc05]/40 bg-[#fbbc05]/10 px-2.5 py-1 font-bangers text-[10px] uppercase tracking-wider text-[#fbbc05]"
+                                                    title={link}
+                                                >
+                                                    Copiar Link
+                                                </button>
+                                            ) : (
+                                                <>
+                                                    <span className="rounded-full bg-[#fbbc05]/15 px-2 py-0.5 font-bangers text-[9px] uppercase tracking-wider text-[#fbbc05]/85">
+                                                        Pendiente
+                                                    </span>
+                                                    <button
+                                                        onClick={() => generateInvite(player.id)}
+                                                        className="rounded-full border border-[#fbbc05]/40 bg-[#fbbc05]/5 px-2.5 py-0.5 font-bangers text-[10px] uppercase tracking-wider text-[#fbbc05]/90 hover:bg-[#fbbc05]/10"
+                                                    >
+                                                        Generar Link
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </section>
+        );
+    };
 
     return (
-        <div className="min-h-screen">
-            <header className="bg-forest-deep text-cream px-4 py-3 flex items-center justify-between gold-border">
-                <div>
-                    <h1 className="text-lg font-bangers metallic-text uppercase tracking-wider">Gestión de Jugadores</h1>
-                    <p className="text-[10px] text-cream/50 uppercase tracking-widest font-fredoka">Panel Admin</p>
+        <div className="relative z-[1] flex min-h-full flex-col pb-24">
+            <header className="flex items-baseline justify-between px-4 pt-6 pb-4">
+                <div className="min-w-0">
+                    <div className="font-bangers text-[11px] uppercase tracking-[0.22em] text-[#fbbc05]/85">
+                        Panel Admin
+                    </div>
+                    <div
+                        className="font-bangers text-[36px] leading-[0.95] tracking-wide text-white"
+                        style={{
+                            WebkitTextStroke: '1.5px #07101b',
+                            textShadow: '0 3px 0 rgba(7,16,27,0.85), 0 0 18px rgba(240,200,80,0.18)',
+                        }}
+                    >
+                        Jugadores
+                    </div>
                 </div>
-                <button
-                    onClick={() => router.back()}
-                    className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors font-fredoka text-cream"
-                >
+                <button onClick={() => router.back()} className={PILL_GHOST}>
                     Volver
                 </button>
             </header>
 
-            <div className="max-w-2xl mx-auto p-4 pt-6">
+            <main className="px-4">
                 {renderTeamSection('red', redPlayers)}
                 {renderTeamSection('blue', bluePlayers)}
-            </div>
+                <div className="mt-2 font-fredoka text-[10px] italic text-white/40">
+                    Tip: el tee mostrado aquí es el <span className="text-white/65">default</span>. Para asignar un tee diferente solo en una ronda específica, abre la página de <span className="text-[#fbbc05]/85">Compose flights</span> de esa ronda.
+                </div>
+            </main>
 
             {editingPlayer && (
                 <EditPlayerModal

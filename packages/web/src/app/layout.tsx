@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from 'next';
-import { Bangers, Fredoka } from 'next/font/google';
+import { Bangers, Fredoka, Bowlby_One } from 'next/font/google';
 import './globals.css';
 import { BottomNav } from '@/components/BottomNav';
-import { SettingsLink } from '@/components/SettingsLink';
 import { AuthProvider } from '@/lib/auth';
 import { SyncProvider } from '@/lib/syncContext';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
@@ -20,9 +19,16 @@ const fredoka = Fredoka({
     display: 'swap',
 });
 
+const bowlby = Bowlby_One({
+    weight: '400',
+    subsets: ['latin'],
+    variable: '--font-bowlby',
+    display: 'swap',
+});
+
 export const metadata: Metadata = {
-    title: 'Ryder Cup Par00',
-    description: 'Golf tournament scoring app',
+    title: 'La Romana 2026',
+    description: 'Marcador Piratas vs Fantasmas del Caribe',
 };
 
 export const viewport: Viewport = {
@@ -38,15 +44,19 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="en" className={`${bangers.variable} ${fredoka.variable}`}>
+        <html lang="es" className={`${bangers.variable} ${fredoka.variable} ${bowlby.variable}`}>
+            <head>
+                {/* Preload critical above-the-fold imagery */}
+                <link rel="preload" as="image" href="/images/piratas-vs-fantasmas.webp" type="image/webp" />
+                <link rel="preload" as="image" href="/images/background.webp" type="image/webp" />
+            </head>
             <body className="bg-app-gradient">
                 <AuthProvider>
                     <SyncProvider>
-                        <main className="max-w-md mx-auto bg-transparent relative z-[1]">
+                        <main className="relative z-[1] mx-auto min-h-screen max-w-md bg-transparent">
                             {children}
                         </main>
                         <OfflineIndicator />
-                        <SettingsLink />
                         <BottomNav />
                     </SyncProvider>
                 </AuthProvider>

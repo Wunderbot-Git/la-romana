@@ -5,12 +5,26 @@
 //   - Individual Stableford leaderboard (all rounds summed)
 //   - Ryder Cup team match points (all rounds summed)
 
+/** Per-hole Stableford detail used by the leaderboard's "explain my points" UI. */
+export interface StablefordHoleDetail {
+    holeNumber: number;
+    par: number;
+    grossScore: number | null;
+    strokes: number;
+    netScore: number | null;
+    points: number;
+}
+
 export interface PlayerRoundPoints {
     playerId: string;
     roundNumber: number;
     stablefordPoints: number;
     /** Match points a player personally earned in singles + fourball for this round. */
     ryderIndividualPoints: number;
+    /** Optional — only set on the entry that came from `calculateStablefordRound`. */
+    stablefordHoles?: StablefordHoleDetail[];
+    /** Optional — Playing Handicap used for Stableford in this round. */
+    playingHandicap?: number;
 }
 
 export interface PlayerTournamentTotals {

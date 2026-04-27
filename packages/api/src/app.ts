@@ -14,6 +14,9 @@ import { netoRoutes } from './routes/netos';
 import { sidePotRoutes } from './routes/sidePots';
 import { adminRoutes } from './routes/admin';
 import { inviteRoutes } from './routes/invites';
+import { betRoutes } from './routes/bets';
+import { generalBetRoutes } from './routes/generalBets';
+import { apuestasRoutes } from './routes/apuestas';
 import errorHandler from './plugins/errorHandler';
 import cors from './plugins/cors';
 
@@ -97,6 +100,9 @@ export const buildApp = (): FastifyInstance => {
     app.register(spectatorRoutes);
     app.register(adminRoutes);
     app.register(inviteRoutes);
+    app.register(betRoutes);
+    app.register(generalBetRoutes);
+    app.register(apuestasRoutes);
 
     return app;
 };

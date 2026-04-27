@@ -1,70 +1,110 @@
-# Apuestas Par00 — Guia Rapida
+# Apuestas La Romana 2026 — Guía Rápida
 
-## Antes del torneo: 24 apuestas obligatorias ($5.000 c/u = $120.000 total)
+## Resumen
 
-### 4 generales
-
-| Apuesta | Que predices? |
-|---------|---------------|
-| Ganador del Torneo | Pitufos o Carinositos? |
-| Marcador Exacto | Cual sera el marcador final? (ej: 14-11) |
-| MVP | Quien sera el mejor jugador? |
-| Peor Jugador | Quien sera el peor? |
-
-### 20 de partidos (10 individuales + 5 mejor bola + 5 scramble)
-
-Apuestas por quien gana cada partido: Rojo, Azul, o Empate
+- **40 apuestas obligatorias por jugador**, $2 USD cada una = **$80 USD total**
+- 4 apuestas **generales** (todo el torneo) + 36 apuestas **de partidos** (por ronda)
+- **Sin banca**: todo lo apostado va a un pozo y se reparte entre los acertadores
 
 ---
 
-## Durante los partidos: apuestas adicionales ($5.000 c/u)
+## 1. Apuestas Generales — 4 (todo el torneo)
 
-Puedes agregar apuestas extras en cualquier partido que este en juego:
+| # | Apuesta | Qué predices |
+|:-:|---------|---------------|
+| 1 | **Ganador del Torneo** | Piratas o Fantasmas |
+| 2 | **Marcador Exacto** | Score final, ej. `20-16` (la suma debe dar 36) |
+| 3 | **MVP** | Mejor jugador del torneo (mayor Stableford acumulado) |
+| 4 | **Peor Jugador** | El que menos Stableford acumule |
 
-- Si el partido esta empatado: puedes apostar por cualquier lado
-- Si alguien va ganando: solo puedes apostar **contra el lider** o por empate
-- **Nunca** puedes apostar por el que va ganando
-
-**La ventana se cierra** cuando el partido esta muy definido (3+ UP, o pocas chances de remontada).
-
----
-
-## Como se reparte la plata?
-
-**No hay banca.** Todo va a un pozo y se reparte entre los ganadores.
-
-**Apuestas generales:** El pozo se divide equitativamente entre los que acertaron.
-
-**Apuestas de partidos:** Tu porcion del pozo depende de **cuando** y **cuanto riesgo** tomaste:
-
-| Cuando apostaste | Bonus |
-|------------------|:-----:|
-| **Antes** del partido | 2x |
-| Primeros **3 hoyos** | 1.5x |
-| Despues del **hoyo 4** | 1x |
-
-| Riesgo | Bonus |
-|--------|:-----:|
-| Partido empatado | 1x |
-| Contra lider **1 UP** | 2x |
-| Contra lider **2 UP** | 3x |
-
-> Apostar temprano o arriesgarse contra el lider = mayor porcion del pozo si aciertas.
+> **Cierre:** las apuestas generales se cierran al primer hoyo del torneo (Round 1, Hoyo 1). Después ya no se puede registrar ni cambiar.
 
 ---
 
-## Ejemplo rapido
+## 2. Apuestas de Partidos — 36 (3 rondas × 4 grupos × 3 partidos)
 
-**Partido Phil vs Pocho — 12 apuestas de $5.000 = Pozo $60.000**
+Cada ronda tiene **4 grupos**, cada grupo juega **3 partidos** simultáneamente:
 
-| Quien | Cuando | Por quien | Bonus | Si acierta... |
-|-------|--------|-----------|:-----:|------:|
-| Tu | Antes | Phil | 2x | **$8.571** (+71%) |
-| Ana | Hoyo 6, Pocho 2UP | Phil | 3x | **$12.857** (+157%) |
-| Los de Pocho | Antes | Pocho | 2x | **$15.000** (+200%) |
+- **Singles 1** — Red P1 vs Blue P1 (1:1)
+- **Singles 2** — Red P2 vs Blue P2 (1:1)
+- **Mejor Bola** — Red P1+P2 vs Blue P1+P2 (2:2)
+
+Por cada partido eliges entre **3 outcomes**:
+
+| Outcome | Significado |
+|---------|-------------|
+| **Piratas** | Gana el lado rojo |
+| **Fantasmas** | Gana el lado azul |
+| **A/S** | El partido termina empatado |
+
+> **Cierre:** apenas se ingresa el primer score de un grupo en una ronda, **las 3 apuestas de ese grupo se cierran**. No se puede apostar después de empezar.
 
 ---
 
-## Al final
+## 3. Cómo se reparte el pozo
 
-El sistema calcula automaticamente cuanto gano/perdio cada jugador y las transferencias necesarias entre jugadores. Sin banca, sin complicaciones.
+**Sin multiplicadores. Sin bonos por timing.** Cada apuesta = $2 USD = 1 share.
+
+### Por cada partido / pool
+
+```
+pozo total = (# apuestas) × $2
+ganancia por acertador = pozo total / (# acertadores)
+```
+
+### Ejemplos
+
+**Partido Manuela vs Philipp** — 12 apuestas registradas → pozo $24
+
+- 7 personas apostaron a Manuela (Piratas)
+- 4 personas apostaron a Philipp (Fantasmas)
+- 1 persona apostó A/S
+
+**Si gana Philipp:** los 4 que acertaron se reparten $24 → **$6 cada uno** (recuperan $2 + ganan $4)
+
+**Si termina A/S:** la única persona que acertó A/S se lleva todo el pozo → **$24** (recupera $2 + gana $22)
+
+**Si gana Manuela:** los 7 que acertaron se reparten $24 → **$3.43 cada uno** (recuperan $2 + ganan $1.43)
+
+> **Edge case — nadie acertó:** se reembolsa el dinero a todos los apostadores.
+
+---
+
+## 4. Reembolso por torneo abandonado / partido suspendido
+
+Si un partido **no termina** (suspensión, descalificación, etc.), las apuestas siguen abiertas hasta el final del torneo. Si al cierre del torneo no hay resolución, el partido se considera **A/S** automáticamente para fines de pago.
+
+---
+
+## 5. Liquidación
+
+Al final del torneo el aplicativo:
+
+1. Calcula la **balance neta** de cada jugador (lo ganado − lo perdido)
+2. Genera la **lista mínima de transferencias** entre jugadores (algoritmo greedy)
+3. Cada jugador ve cuánto debe pagar a quién, o cuánto le deben
+
+> **Sistema de honor.** No hay banca, no hay intermediario. La app sólo sugiere las transferencias más eficientes — los jugadores se ponen al día por Bizum / efectivo / la cerveza del aeropuerto / lo que les convenga.
+
+---
+
+## 6. Tabs en la app `/apuestas`
+
+| Tab | Qué muestra |
+|-----|-------------|
+| **General** | Las 4 apuestas generales con sus pools actuales |
+| **Partidos** | Todas las apuestas de partidos por ronda (selector R1 / R2 / R3) |
+| **Clasificación** | Ranking por balance neta — quién va ganando plata, quién está en negativo |
+| **Liquidación** | Tras el torneo: lista de transferencias sugeridas |
+
+Cada jugador ve además su **panel personal** arriba: total apostado, ganancia/pérdida realizada, potencial restante, % recuperado.
+
+---
+
+## Notas técnicas
+
+- **Bet amount** se guarda en `events.bet_amount` (ahora = $2.00)
+- **Match bets**: tabla `bets`, scoped por `(round_id, flight_id, segment_type, bettor_id)`
+- **General bets**: tabla `general_bets`, scoped por `(event_id, bet_type, bettor_id)`
+- **Lock**: ambos servicios chequean `hole_scores` para determinar si la ventana está cerrada
+- **Adaptaciones vs Bogotá**: sin `scramble`, sin `timing_factor`/`risk_factor`/`partes` (siempre = 1), sin `is_additional`, USD en lugar de COP

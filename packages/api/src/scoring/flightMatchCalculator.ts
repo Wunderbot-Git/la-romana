@@ -11,6 +11,14 @@ export interface FlightPlayerScores {
     handicapIndex: number;
     grossScores: (number | null)[]; // 18 holes, index 0 = hole 1
     strokeIndexes: number[];        // 18 stroke indexes from player's tee
+    /**
+     * Pre-computed Playing Handicap for the singles match for THIS player at THIS round
+     * (course-aware: factors in the player's tee slope/rating + round.hcpSinglesPct).
+     * If omitted, the engine falls back to legacy `index × 80%`.
+     */
+    playingHcpSingles?: number;
+    /** Same idea, applied to the fourball match (uses round.hcpFourballPct). */
+    playingHcpFourball?: number;
 }
 
 export interface FlightMatchesInput {
@@ -71,11 +79,16 @@ export const calculateFlightMatches = (input: FlightMatchesInput): FlightMatches
             redPlayer: {
                 handicapIndex: input.redPlayer1.handicapIndex,
                 grossScores: input.redPlayer1.grossScores,
+                strokeIndexes: input.redPlayer1.strokeIndexes,
+                playingHandicap: input.redPlayer1.playingHcpSingles,
             },
             bluePlayer: {
                 handicapIndex: input.bluePlayer1.handicapIndex,
                 grossScores: input.bluePlayer1.grossScores,
+                strokeIndexes: input.bluePlayer1.strokeIndexes,
+                playingHandicap: input.bluePlayer1.playingHcpSingles,
             },
+            // Fallback (rarely used now both players carry their own SIs)
             strokeIndexes: input.redPlayer1.strokeIndexes,
             totalHoles: 18,
             matchPoints: 1,
@@ -103,10 +116,14 @@ export const calculateFlightMatches = (input: FlightMatchesInput): FlightMatches
             redPlayer: {
                 handicapIndex: input.redPlayer2.handicapIndex,
                 grossScores: input.redPlayer2.grossScores,
+                strokeIndexes: input.redPlayer2.strokeIndexes,
+                playingHandicap: input.redPlayer2.playingHcpSingles,
             },
             bluePlayer: {
                 handicapIndex: input.bluePlayer2.handicapIndex,
                 grossScores: input.bluePlayer2.grossScores,
+                strokeIndexes: input.bluePlayer2.strokeIndexes,
+                playingHandicap: input.bluePlayer2.playingHcpSingles,
             },
             strokeIndexes: input.redPlayer2.strokeIndexes,
             totalHoles: 18,
@@ -140,11 +157,13 @@ export const calculateFlightMatches = (input: FlightMatchesInput): FlightMatches
                     handicapIndex: input.redPlayer1.handicapIndex,
                     grossScores: input.redPlayer1.grossScores,
                     strokeIndexes: input.redPlayer1.strokeIndexes,
+                    playingHandicap: input.redPlayer1.playingHcpFourball,
                 },
                 player2: {
                     handicapIndex: input.redPlayer2.handicapIndex,
                     grossScores: input.redPlayer2.grossScores,
                     strokeIndexes: input.redPlayer2.strokeIndexes,
+                    playingHandicap: input.redPlayer2.playingHcpFourball,
                 },
             },
             blueTeam: {
@@ -152,11 +171,13 @@ export const calculateFlightMatches = (input: FlightMatchesInput): FlightMatches
                     handicapIndex: input.bluePlayer1.handicapIndex,
                     grossScores: input.bluePlayer1.grossScores,
                     strokeIndexes: input.bluePlayer1.strokeIndexes,
+                    playingHandicap: input.bluePlayer1.playingHcpFourball,
                 },
                 player2: {
                     handicapIndex: input.bluePlayer2.handicapIndex,
                     grossScores: input.bluePlayer2.grossScores,
                     strokeIndexes: input.bluePlayer2.strokeIndexes,
+                    playingHandicap: input.bluePlayer2.playingHcpFourball,
                 },
             },
             totalHoles: 18,

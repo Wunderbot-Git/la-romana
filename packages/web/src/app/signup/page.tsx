@@ -47,8 +47,8 @@ export default function SignupPage() {
             {/* Header Image */}
             <div className="relative w-full h-[240px] sm:h-[300px] overflow-hidden rounded-b-[32px] thick-border border-t-0 border-l-0 border-r-0 mb-8 shadow-md">
                 <Image
-                    src="/images/hero_header.webp"
-                    alt="Pitufos vs Cariñositos"
+                    src="/images/piratas-vs-fantasmas.webp"
+                    alt="Piratas del Caribe vs Fantasmas del Caribe"
                     fill
                     className="object-cover object-top"
                     priority

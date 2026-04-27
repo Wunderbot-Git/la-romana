@@ -16,3 +16,9 @@ avatar/
 # Archived/legacy material — kept locally, never pushed
 _archive/
 par00-pitufos-carinositos-main/
+
+# Local Claude Code sessions / plans / worktrees
+.claude/
+
+# Generated docs / artifacts (regenerable from source)
+Apuestas_LR*.pdf

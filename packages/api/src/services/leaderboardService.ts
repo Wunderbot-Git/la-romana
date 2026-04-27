@@ -16,6 +16,9 @@ import {
 } from '../scoring/flightMatchCalculator';
 import { formatMatchStatus } from '../scoring/matchStatus';
 import { calculateStablefordRound } from '../scoring/stableford';
+import { computePlayingHandicapFromIndex } from '../scoring/handicap';
+import * as playerFlightRepo from '../repositories/playerFlightRepository';
+import * as playerRoundTeeRepo from '../repositories/playerRoundTeeRepository';
 import {
     aggregatePlayerTotals,
     aggregateTeamTotals,
@@ -33,6 +36,26 @@ export interface RyderTeamStanding {
     roundsPlayed: number;
 }
 
+export interface StablefordHoleDetail {
+    holeNumber: number;
+    par: number;
+    grossScore: number | null;
+    strokes: number;
+    netScore: number | null;
+    points: number;
+}
+
+export interface StablefordRoundBreakdown {
+    roundNumber: number;
+    courseName: string;
+    stablefordPoints: number;
+    ryderIndividualPoints: number;
+    /** Per-hole detail (only present for rounds the player has played). */
+    holes?: StablefordHoleDetail[];
+    /** Playing Handicap used for Stableford this round (course-aware). */
+    playingHandicap?: number;
+}
+
 export interface StablefordStanding {
     playerId: string;
     playerName: string;
@@ -41,6 +64,8 @@ export interface StablefordStanding {
     stablefordCumulative: number;
     ryderIndividualCumulative: number;
     roundsPlayed: number;
+    /** Per-round Stableford + individual Ryder points, sorted by roundNumber. */
+    byRound: StablefordRoundBreakdown[];
 }
 
 export interface RoundBreakdown {
@@ -57,6 +82,12 @@ export interface MatchPlayer {
     id: string;
     name: string;
     hcp: number;
+    /** Playing Handicap for singles match (course-aware, allowance-applied). */
+    playingHcpSingles?: number;
+    /** Playing Handicap for fourball match (course-aware, allowance-applied). */
+    playingHcpFourball?: number;
+    /** This player's per-hole Stroke Index list (1=hardest), 18 entries, based on their tee. */
+    strokeIndexes?: number[];
 }
 
 export interface MatchHoleDetail {
@@ -110,9 +141,18 @@ export const invalidateLeaderboardCache = (eventId: string): void => {
     leaderboardCache.delete(eventId);
 };
 
+interface TeeRatingData {
+    slope: number | null;
+    rating: number | null;
+    /** Sum of par across the 18 holes for this tee. */
+    par: number | null;
+}
+
 interface CourseTeeData {
     /** tee_id → 18 stroke indexes */
     siByTee: Record<string, number[]>;
+    /** tee_id → slope/rating/par (USGA Course HCP inputs). */
+    ratingByTee: Record<string, TeeRatingData>;
     /** Par values for the course (from the first tee with 18 holes). */
     parValues: number[];
     /** Fallback SI array if player has no tee_id. */
@@ -122,10 +162,14 @@ interface CourseTeeData {
 const loadCourseTeeData = async (courseId: string): Promise<CourseTeeData> => {
     const pool = getPool();
     const teesRes = await pool.query(
-        `SELECT t.id FROM tees t WHERE t.course_id = $1 ORDER BY t.created_at ASC`,
+        `SELECT t.id, t.slope_rating, t.course_rating
+           FROM tees t
+          WHERE t.course_id = $1
+          ORDER BY t.created_at ASC`,
         [courseId]
     );
     const siByTee: Record<string, number[]> = {};
+    const ratingByTee: Record<string, TeeRatingData> = {};
     let parValues = Array(18).fill(4);
     let defaultSi = Array.from({ length: 18 }, (_, i) => i + 1);
     let setDefaults = false;
@@ -137,14 +181,21 @@ const loadCourseTeeData = async (courseId: string): Promise<CourseTeeData> => {
         );
         if (holesRes.rows.length === 18) {
             siByTee[tee.id] = holesRes.rows.map((h: any) => h.stroke_index);
+            const teePars = holesRes.rows.map((h: any) => Number(h.par) || 4);
+            const parTotal = teePars.reduce((s: number, n: number) => s + n, 0);
+            ratingByTee[tee.id] = {
+                slope: tee.slope_rating != null ? Number(tee.slope_rating) : null,
+                rating: tee.course_rating != null ? Number(tee.course_rating) : null,
+                par: parTotal,
+            };
             if (!setDefaults) {
-                parValues = holesRes.rows.map((h: any) => h.par);
+                parValues = teePars;
                 defaultSi = siByTee[tee.id];
                 setDefaults = true;
             }
         }
     }
-    return { siByTee, parValues, defaultSi };
+    return { siByTee, ratingByTee, parValues, defaultSi };
 };
 
 interface RoundContext {
@@ -240,6 +291,42 @@ const playerSummary = (r: RosterEntry): MatchPlayer => ({
     hcp: r.handicapIndex,
 });
 
+/**
+ * Like `playerSummary` but enriched with course-aware Playing Handicaps and
+ * the player's per-hole SI list — needed by the leaderboard scorecard so the
+ * UI can render stroke indicators on the correct holes.
+ */
+const enrichedPlayerSummary = (
+    r: RosterEntry,
+    tee: CourseTeeData,
+    round: RoundContext,
+): MatchPlayer => {
+    const strokeIndexes = (r.teeId && tee.siByTee[r.teeId]) || tee.defaultSi;
+    const teeRating = (r.teeId && tee.ratingByTee[r.teeId]) || null;
+    const phSingles = computePlayingHandicapFromIndex({
+        handicapIndex: r.handicapIndex,
+        slope: teeRating?.slope ?? null,
+        rating: teeRating?.rating ?? null,
+        par: teeRating?.par ?? null,
+        allowance: round.hcpSinglesPct,
+    }).playingHandicap;
+    const phFourball = computePlayingHandicapFromIndex({
+        handicapIndex: r.handicapIndex,
+        slope: teeRating?.slope ?? null,
+        rating: teeRating?.rating ?? null,
+        par: teeRating?.par ?? null,
+        allowance: round.hcpFourballPct,
+    }).playingHandicap;
+    return {
+        id: r.id,
+        name: playerName(r),
+        hcp: r.handicapIndex,
+        playingHcpSingles: phSingles,
+        playingHcpFourball: phFourball,
+        strokeIndexes,
+    };
+};
+
 const emptyHoleDetail = (holeNumber: number, par: number, strokeIndex: number, redCount: number, blueCount: number): MatchHoleDetail => ({
     holeNumber,
     par,
@@ -309,18 +396,51 @@ const projectMatch = (
     return { red: 0.5, blue: 0.5 }; // tied mid-match
 };
 
-/** Build FlightPlayerScores for the match calculator, given a player and their round scores. */
+/**
+ * Build FlightPlayerScores for the match calculator, given a player and their round scores.
+ * Pre-computes per-match Playing Handicaps using:
+ *   - the player's tee slope/rating (USGA Course HCP) when available
+ *   - the round's hcp_singles_pct / hcp_fourball_pct allowances
+ * Falls back to legacy `index × allowance` if the tee has no slope/rating yet.
+ *
+ * Tee resolution order:
+ *   1. Per-round override from `player_round_tees` (preferred)
+ *   2. Player's default `players.tee_id`
+ */
 const buildPlayerScores = (
     player: RosterEntry,
     scoresByHole: Map<number, number | null>,
-    tee: CourseTeeData
+    tee: CourseTeeData,
+    round: RoundContext,
+    roundTeeOverride: string | null,
 ): FlightPlayerScores => {
     const grossScores = Array.from({ length: 18 }, (_, i) => scoresByHole.get(i + 1) ?? null);
-    const strokeIndexes = (player.teeId && tee.siByTee[player.teeId]) || tee.defaultSi;
+    const effectiveTeeId = roundTeeOverride ?? player.teeId;
+    const strokeIndexes = (effectiveTeeId && tee.siByTee[effectiveTeeId]) || tee.defaultSi;
+    const teeRating = (effectiveTeeId && tee.ratingByTee[effectiveTeeId]) || null;
+
+    const phSingles = computePlayingHandicapFromIndex({
+        handicapIndex: player.handicapIndex,
+        slope: teeRating?.slope ?? null,
+        rating: teeRating?.rating ?? null,
+        par: teeRating?.par ?? null,
+        allowance: round.hcpSinglesPct,
+    }).playingHandicap;
+
+    const phFourball = computePlayingHandicapFromIndex({
+        handicapIndex: player.handicapIndex,
+        slope: teeRating?.slope ?? null,
+        rating: teeRating?.rating ?? null,
+        par: teeRating?.par ?? null,
+        allowance: round.hcpFourballPct,
+    }).playingHandicap;
+
     return {
         handicapIndex: player.handicapIndex,
         grossScores,
         strokeIndexes,
+        playingHcpSingles: phSingles,
+        playingHcpFourball: phFourball,
     };
 };
 
@@ -349,6 +469,19 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
         const teeData = await loadCourseTeeData(round.courseId);
         const flights = await loadFlightsForRound(round.id);
 
+        // Per-round flight composition lives in the `player_flights` junction table
+        // (migration 025). Group assignments by flight for fast lookup below.
+        const roundAssignments = await playerFlightRepo.getRoundAssignments(round.id);
+        const assignmentsByFlight = new Map<string, typeof roundAssignments>();
+        for (const a of roundAssignments) {
+            const list = assignmentsByFlight.get(a.flightId) ?? [];
+            list.push(a);
+            assignmentsByFlight.set(a.flightId, list);
+        }
+
+        // Per-round tee overrides (migration 026). Map<playerId, teeId>.
+        const roundTeeMap = await playerRoundTeeRepo.getRoundTeeMap(round.id);
+
         let roundRedPoints = 0;
         let roundBluePoints = 0;
         let roundRedProjected = 0;
@@ -365,8 +498,16 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
                 scoresByPlayer.set(s.playerId, byHole);
             }
 
-            // Find the 4 assigned players (2 red + 2 blue) for this flight
-            const flightPlayers = roster.filter(r => r.flightId === flight.id);
+            // Resolve the 4 assigned players (2 red + 2 blue) for this flight via the junction.
+            // Junction-row team/position override the legacy single-flight columns on `players`.
+            const flightAssignments = assignmentsByFlight.get(flight.id) ?? [];
+            const flightPlayers = flightAssignments
+                .map(a => {
+                    const p = rosterById.get(a.playerId);
+                    if (!p) return null;
+                    return { ...p, team: a.team, position: a.position, flightId: flight.id } as RosterEntry;
+                })
+                .filter((p): p is RosterEntry => p !== null);
             const redSorted = flightPlayers
                 .filter(p => p.team === 'red')
                 .sort((a, b) => (a.position ?? 99) - (b.position ?? 99));
@@ -380,8 +521,8 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
             let flightRedProjected = 1.5;
             let flightBlueProjected = 1.5;
 
-            const redPlayersSummary = redSorted.map(playerSummary);
-            const bluePlayersSummary = blueSorted.map(playerSummary);
+            const redPlayersSummary = redSorted.map(r => enrichedPlayerSummary(r, teeData, round));
+            const bluePlayersSummary = blueSorted.map(r => enrichedPlayerSummary(r, teeData, round));
 
             let matches: MatchDetail[] = [
                 notStartedDetail('singles1', flight.id, flight.flightNumber, redPlayersSummary.slice(0, 1), bluePlayersSummary.slice(0, 1), teeData.parValues, teeData.defaultSi),
@@ -391,10 +532,10 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
 
             if (redSorted.length >= 2 && blueSorted.length >= 2) {
                 const result = calculateFlightMatches({
-                    redPlayer1: buildPlayerScores(redSorted[0], scoresByPlayer.get(redSorted[0].id) ?? new Map(), teeData),
-                    redPlayer2: buildPlayerScores(redSorted[1], scoresByPlayer.get(redSorted[1].id) ?? new Map(), teeData),
-                    bluePlayer1: buildPlayerScores(blueSorted[0], scoresByPlayer.get(blueSorted[0].id) ?? new Map(), teeData),
-                    bluePlayer2: buildPlayerScores(blueSorted[1], scoresByPlayer.get(blueSorted[1].id) ?? new Map(), teeData),
+                    redPlayer1: buildPlayerScores(redSorted[0], scoresByPlayer.get(redSorted[0].id) ?? new Map(), teeData, round, roundTeeMap.get(redSorted[0].id) ?? null),
+                    redPlayer2: buildPlayerScores(redSorted[1], scoresByPlayer.get(redSorted[1].id) ?? new Map(), teeData, round, roundTeeMap.get(redSorted[1].id) ?? null),
+                    bluePlayer1: buildPlayerScores(blueSorted[0], scoresByPlayer.get(blueSorted[0].id) ?? new Map(), teeData, round, roundTeeMap.get(blueSorted[0].id) ?? null),
+                    bluePlayer2: buildPlayerScores(blueSorted[1], scoresByPlayer.get(blueSorted[1].id) ?? new Map(), teeData, round, roundTeeMap.get(blueSorted[1].id) ?? null),
                 });
                 flightRedPoints = result.summary.totalRedPoints;
                 flightBluePoints = result.summary.totalBluePoints;
@@ -559,19 +700,39 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
             const byHole = scoresByPlayerForRound.get(player.id);
             if (!byHole || byHole.size === 0) continue; // didn't play this round
             const grossScores = Array.from({ length: 18 }, (_, i) => byHole.get(i + 1) ?? null);
-            const si = (player.teeId && teeData.siByTee[player.teeId]) || teeData.defaultSi;
+            const effectiveTeeId = roundTeeMap.get(player.id) ?? player.teeId;
+            const si = (effectiveTeeId && teeData.siByTee[effectiveTeeId]) || teeData.defaultSi;
+            // Course-aware Playing HCP for Stableford (uses slope/rating + round allowance).
+            const teeRating = (effectiveTeeId && teeData.ratingByTee[effectiveTeeId]) || null;
+            const stablefordPH = computePlayingHandicapFromIndex({
+                handicapIndex: player.handicapIndex,
+                slope: teeRating?.slope ?? null,
+                rating: teeRating?.rating ?? null,
+                par: teeRating?.par ?? null,
+                allowance: round.hcpSinglesPct,
+            }).playingHandicap;
             const stbl = calculateStablefordRound({
                 grossScores,
                 pars: teeData.parValues,
                 strokeIndexes: si,
                 handicapIndex: player.handicapIndex,
                 allowance: round.hcpSinglesPct,
+                playingHandicap: stablefordPH,
             });
             playerPointsPerRound.push({
                 playerId: player.id,
                 roundNumber: round.roundNumber,
                 stablefordPoints: stbl.totalPoints,
                 ryderIndividualPoints: 0, // already recorded from match calculator above
+                stablefordHoles: stbl.holes.map(h => ({
+                    holeNumber: h.holeNumber,
+                    par: h.par,
+                    grossScore: h.grossScore,
+                    strokes: h.strokes,
+                    netScore: h.netScore,
+                    points: h.points,
+                })),
+                playingHandicap: stbl.playingHandicap,
             });
         }
 
@@ -605,8 +766,35 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
     });
 
     const playerTotals = aggregatePlayerTotals(playerPointsPerRound);
+
+    // Build per-player per-round breakdown by aggregating playerPointsPerRound
+    // (multiple entries per (playerId, roundNumber) come from singles + fourball + Stableford rows).
+    const courseByRoundNumber = new Map<number, string>(
+        roundBreakdowns.map(r => [r.roundNumber, r.courseName])
+    );
+    const breakdownByPlayer = new Map<string, Map<number, StablefordRoundBreakdown>>();
+    for (const entry of playerPointsPerRound) {
+        const playerMap = breakdownByPlayer.get(entry.playerId) ?? new Map();
+        const prev: StablefordRoundBreakdown = playerMap.get(entry.roundNumber) ?? {
+            roundNumber: entry.roundNumber,
+            courseName: courseByRoundNumber.get(entry.roundNumber) ?? `Round ${entry.roundNumber}`,
+            stablefordPoints: 0,
+            ryderIndividualPoints: 0,
+        };
+        prev.stablefordPoints += entry.stablefordPoints;
+        prev.ryderIndividualPoints += entry.ryderIndividualPoints;
+        // Only the Stableford-source entry carries hole detail + PH — preserve them.
+        if (entry.stablefordHoles) prev.holes = entry.stablefordHoles;
+        if (entry.playingHandicap !== undefined) prev.playingHandicap = entry.playingHandicap;
+        playerMap.set(entry.roundNumber, prev);
+        breakdownByPlayer.set(entry.playerId, playerMap);
+    }
+
     const stablefordStandings: StablefordStanding[] = playerTotals.map(t => {
         const player = rosterById.get(t.playerId);
+        const byRound = [...(breakdownByPlayer.get(t.playerId)?.values() ?? [])].sort(
+            (a, b) => a.roundNumber - b.roundNumber
+        );
         return {
             playerId: t.playerId,
             playerName: player ? playerName(player) : 'Unknown',
@@ -615,6 +803,7 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
             stablefordCumulative: t.stablefordCumulative,
             ryderIndividualCumulative: t.ryderIndividualCumulative,
             roundsPlayed: t.roundsPlayed,
+            byRound,
         };
     });
 

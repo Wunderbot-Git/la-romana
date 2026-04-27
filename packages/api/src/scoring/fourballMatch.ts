@@ -1,4 +1,11 @@
-// Fourball Match Engine - Best Ball Team Match
+// Fourball Match Engine — La Romana 2026 ruleset
+//
+// HANDICAP RULE: Full Course Handicap fourball (modern WHS standard).
+//   Each of the 4 players receives strokes per their OWN Playing Handicap on the
+//   holes whose Stroke Index ≤ their PH. Each player computes their own net
+//   score; the team takes the LOWER (best ball). Lower team-best-net wins the hole.
+//
+// NOT used: the older "differential from lowest of 4 PHs" rule.
 
 import { calculatePlayingHandicap } from './handicap';
 import { getStrokesForHole } from './strokeAllocation';
@@ -10,6 +17,8 @@ export interface FourballPlayerInput {
     handicapIndex: number;
     grossScores: (number | null)[]; // null = picked up / no score
     strokeIndexes: number[]; // Player's own SI (for mixed tees)
+    /** Optional pre-computed Playing Handicap. See SinglesPlayerInput. */
+    playingHandicap?: number;
 }
 
 export interface FourballTeamInput {
@@ -75,11 +84,12 @@ export const calculateFourballMatch = (input: FourballMatchInput): FourballMatch
     const totalHoles = input.totalHoles ?? 18;
     const matchPoints = input.matchPoints ?? 1;
 
-    // Calculate playing handicaps (80%)
-    const redP1PH = calculatePlayingHandicap(input.redTeam.player1.handicapIndex);
-    const redP2PH = calculatePlayingHandicap(input.redTeam.player2.handicapIndex);
-    const blueP1PH = calculatePlayingHandicap(input.blueTeam.player1.handicapIndex);
-    const blueP2PH = calculatePlayingHandicap(input.blueTeam.player2.handicapIndex);
+    // Use caller-supplied Playing Handicap when available (course-aware path),
+    // else fall back to the legacy `index × 80%` formula.
+    const redP1PH  = input.redTeam.player1.playingHandicap  ?? calculatePlayingHandicap(input.redTeam.player1.handicapIndex);
+    const redP2PH  = input.redTeam.player2.playingHandicap  ?? calculatePlayingHandicap(input.redTeam.player2.handicapIndex);
+    const blueP1PH = input.blueTeam.player1.playingHandicap ?? calculatePlayingHandicap(input.blueTeam.player1.handicapIndex);
+    const blueP2PH = input.blueTeam.player2.playingHandicap ?? calculatePlayingHandicap(input.blueTeam.player2.handicapIndex);
 
     // Full Handicap: No differential calc (lowestPH removed)
 
