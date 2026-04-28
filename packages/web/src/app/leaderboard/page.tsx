@@ -26,7 +26,7 @@ type TypeFilter = 'all' | 'individual' | 'fourball';
 const CARD_DARK = 'bg-gradient-to-b from-[#1c2f3e] to-[#0f172b] border-[2px] border-[#31316b] rounded-[16px] shadow-[0_4px_12px_rgba(0,0,0,0.5)]';
 const CARD_GOLD = 'bg-gradient-to-b from-[#1c2f3e] to-[#0f172b] border-[2px] border-[#fbbc05]/50 rounded-[16px] shadow-[0_4px_12px_rgba(0,0,0,0.5)]';
 
-const PILL_BASE = 'px-3 py-1.5 rounded-full text-xs font-bangers tracking-wider uppercase transition-all whitespace-nowrap';
+const PILL_BASE = 'px-2.5 py-1 rounded-full text-[11px] font-bangers tracking-wider uppercase transition-all whitespace-nowrap';
 const PILL_INACTIVE = `${PILL_BASE} bg-[#0f172b]/80 text-white/60 border-[2px] border-[#31316b] hover:text-white`;
 const PILL_GOLD = `${PILL_BASE} bg-gradient-to-b from-[#fce8b2] via-[#fbbc05] to-[#e37400] text-[#1e293b] shadow-[0_3px_0_#1e293b] border-[2px] border-[#1e293b]`;
 const PILL_CYAN = `${PILL_BASE} bg-gradient-to-b from-[#7DD3FC] to-[#0EA5E9] text-[#0c4a6e] shadow-[0_3px_0_#0c4a6e] border-[2px] border-[#0c4a6e]`;
@@ -139,19 +139,19 @@ function RyderTab({ data }: { data: LeaderboardData }) {
                 </div>
             </div>
 
-            {/* Match filters */}
-            <div className="flex flex-wrap gap-2 items-center">
+            {/* Match filters — single row, tightened so it fits at 343px viewport */}
+            <div className="flex items-center gap-1.5">
                 <FilterPill active={statusFilter === 'all'} variant="gold" onClick={() => setStatusFilter('all')}>Todo</FilterPill>
                 <FilterPill active={statusFilter === 'live'} variant="cyan" onClick={() => setStatusFilter('live')}>Vivo</FilterPill>
                 <FilterPill active={statusFilter === 'final'} variant="gold" onClick={() => setStatusFilter('final')}>Final</FilterPill>
-                <span className="w-px h-6 bg-white/20 mx-1"></span>
+                <span className="h-5 w-px bg-white/15"></span>
                 <FilterSelect
                     value={typeFilter}
                     onChange={setTypeFilter}
                     options={[
                         { value: 'all', label: 'Todos' },
-                        { value: 'individual', label: 'Individual' },
-                        { value: 'fourball', label: 'Mejor Bola' },
+                        { value: 'individual', label: 'Indiv.' },
+                        { value: 'fourball', label: 'M. Bola' },
                     ]}
                     ariaLabel="Filtrar tipo de partido"
                 />
@@ -248,12 +248,12 @@ function FilterSelect<T extends string>({
     ariaLabel: string;
 }) {
     return (
-        <div className="relative min-w-[150px]">
+        <div className="relative">
             <select
                 value={value}
                 aria-label={ariaLabel}
                 onChange={(event) => onChange(event.target.value as T)}
-                className="h-[34px] w-full appearance-none rounded-full border-[2px] border-[#1e293b] bg-gradient-to-b from-[#fce8b2] via-[#fbbc05] to-[#e37400] py-1.5 pl-4 pr-9 font-bangers text-xs uppercase text-[#1e293b] shadow-[0_3px_0_#1e293b] outline-none transition-all focus:ring-2 focus:ring-[#fce8b2]/70"
+                className="h-[28px] appearance-none rounded-full border-[2px] border-[#1e293b] bg-gradient-to-b from-[#fce8b2] via-[#fbbc05] to-[#e37400] py-0.5 pl-2.5 pr-7 font-bangers text-[11px] uppercase text-[#1e293b] shadow-[0_3px_0_#1e293b] outline-none transition-all focus:ring-2 focus:ring-[#fce8b2]/70"
             >
                 {options.map(option => (
                     <option key={option.value} value={option.value}>
@@ -265,7 +265,7 @@ function FilterSelect<T extends string>({
                 viewBox="0 0 20 20"
                 fill="none"
                 aria-hidden="true"
-                className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#1e293b]"
+                className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#1e293b]"
             >
                 <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
