@@ -90,7 +90,7 @@ export function TeamScoreHeader({
                     >
                         <ScoreNumber value={redText} tone="gold" />
 
-                        <div className="relative flex w-[68px] items-center justify-center">
+                        <div className="relative flex w-[56px] items-center justify-center">
                             <div
                                 className="pointer-events-none absolute inset-0"
                                 style={{
@@ -100,7 +100,7 @@ export function TeamScoreHeader({
                                 }}
                             />
                             <span
-                                className="relative font-bowlby text-[46px] leading-none"
+                                className="relative font-bowlby text-[38px] leading-none"
                                 style={{
                                     background:
                                         'linear-gradient(180deg, #fff8df 0%, #ffd76a 34%, #f08d15 78%, #5d2b08 100%)',
@@ -119,9 +119,9 @@ export function TeamScoreHeader({
                     </div>
 
                     {showProjected && (
-                        <div className="relative z-10 mx-auto mt-3 w-full max-w-[316px] cursor-pointer px-2" onClick={onToggleCurrent}>
+                        <div className="relative z-10 mx-auto mt-3 w-full max-w-[300px] cursor-pointer px-1" onClick={onToggleCurrent}>
                             <div
-                                className="grid grid-cols-[34px_minmax(34px,auto)_minmax(0,1fr)_minmax(34px,auto)_34px] items-center gap-x-1.5 rounded-full border border-[#6fa6d7]/55 px-2 py-1.5"
+                                className="grid grid-cols-[26px_auto_minmax(0,1fr)_auto_26px] items-center gap-x-1 rounded-full border border-[#6fa6d7]/55 px-1.5 py-1.5"
                                 style={{
                                     background:
                                         'linear-gradient(90deg, rgba(35,22,10,0.94) 0%, rgba(8,16,27,0.96) 50%, rgba(10,34,56,0.96) 100%)',
@@ -129,17 +129,17 @@ export function TeamScoreHeader({
                                         'inset 0 2px 5px rgba(0,0,0,0.62), 0 2px 0 rgba(0,0,0,0.42)',
                                 }}
                             >
-                                <img src="/images/crest-piratas.webp" alt="Piratas" className="h-8 w-8 drop-shadow-[0_2px_2px_rgba(0,0,0,0.72)]" />
-                                <span className="justify-self-center font-bowlby text-[26px] leading-none text-[#F0C850] drop-shadow-[0_2px_0_#251304]">
+                                <img src="/images/crest-piratas.webp" alt="Piratas" className="h-6 w-6 drop-shadow-[0_2px_2px_rgba(0,0,0,0.72)]" />
+                                <span className="justify-self-center font-bowlby text-[19px] leading-none text-[#F0C850] drop-shadow-[0_2px_0_#251304]">
                                     {projectedRedText}
                                 </span>
-                                <span className="justify-self-center font-bangers text-[16px] uppercase leading-none text-[#ffe7a2] drop-shadow-[0_2px_0_#251304]">
+                                <span className="justify-self-center font-bangers text-[12px] uppercase leading-none tracking-wide text-[#ffe7a2] drop-shadow-[0_2px_0_#251304]">
                                     PROYECTADO
                                 </span>
-                                <span className="justify-self-center font-bowlby text-[26px] leading-none text-[#8ed2ff] drop-shadow-[0_2px_0_#07101b]">
+                                <span className="justify-self-center font-bowlby text-[19px] leading-none text-[#8ed2ff] drop-shadow-[0_2px_0_#07101b]">
                                     {projectedBlueText}
                                 </span>
-                                <img src="/images/crest-fantasmas.webp" alt="Fantasmas" className="h-8 w-8 drop-shadow-[0_2px_2px_rgba(0,0,0,0.72)]" />
+                                <img src="/images/crest-fantasmas.webp" alt="Fantasmas" className="h-6 w-6 drop-shadow-[0_2px_2px_rgba(0,0,0,0.72)]" />
                             </div>
                         </div>
                     )}
@@ -214,10 +214,10 @@ function ScoreNumber({ value, tone }: { value: string; tone: 'gold' | 'ice' }) {
 }
 
 function scoreTextClass(value: string): string {
-    if (value.length >= 4) return 'text-[42px]';
-    if (value.length === 3) return 'text-[56px]';
-    if (value.length === 2) return 'text-[68px]';
-    return 'text-[84px]';
+    if (value.length >= 4) return 'text-[36px]';
+    if (value.length === 3) return 'text-[48px]';
+    if (value.length === 2) return 'text-[58px]';
+    return 'text-[72px]';
 }
 
 function formatNum(n: number): string {
