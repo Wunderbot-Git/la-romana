@@ -121,40 +121,43 @@ function RyderTab({ data }: { data: LeaderboardData }) {
                 onSelect={setSelectedRoundId}
             />
 
-            {/* Round score summary — sticky so the score stays visible while scrolling matches */}
-            <div className={`${CARD_GOLD} sticky top-0 z-30 -mx-4 px-4 py-3 flex items-center justify-between rounded-none border-x-0 sm:mx-0 sm:rounded-[16px] sm:border-x-[2px]`}>
-                <div>
-                    <div className="text-[10px] text-[#fbbc05]/80 uppercase font-bangers tracking-widest">Round {round.roundNumber}</div>
-                    <div className="font-bangers tracking-wider text-white text-lg">{round.courseName}</div>
-                </div>
-                <div className="text-right">
-                    <div className="font-bangers text-2xl tracking-wider">
-                        <span className="text-team-red">{formatPts(round.teamPoints.red)}</span>
-                        <span className="text-white/40 mx-1">-</span>
-                        <span className="text-team-blue">{formatPts(round.teamPoints.blue)}</span>
+            {/* Sticky group — round score + match filters all stay docked at the
+                top while scrolling through the match cards. Background blur so the
+                content below scrolls underneath without showing through. */}
+            <div className="sticky top-0 z-30 -mx-4 space-y-2 bg-[#0a1322]/92 px-4 pt-2 pb-3 backdrop-blur-md">
+                <div className={`${CARD_GOLD} flex items-center justify-between rounded-[12px] px-4 py-2.5`}>
+                    <div>
+                        <div className="text-[10px] text-[#fbbc05]/80 uppercase font-bangers tracking-widest">Round {round.roundNumber}</div>
+                        <div className="font-bangers tracking-wider text-white text-lg">{round.courseName}</div>
                     </div>
-                    <div className="text-[10px] text-white/50 font-fredoka">
-                        proj {formatPts(round.teamPointsProjected.red)} · {formatPts(round.teamPointsProjected.blue)}
+                    <div className="text-right">
+                        <div className="font-bangers text-2xl tracking-wider">
+                            <span className="text-team-red">{formatPts(round.teamPoints.red)}</span>
+                            <span className="text-white/40 mx-1">-</span>
+                            <span className="text-team-blue">{formatPts(round.teamPoints.blue)}</span>
+                        </div>
+                        <div className="text-[10px] text-white/50 font-fredoka">
+                            proj {formatPts(round.teamPointsProjected.red)} · {formatPts(round.teamPointsProjected.blue)}
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Match filters — single row, tightened so it fits at 343px viewport */}
-            <div className="flex items-center gap-1.5">
-                <FilterPill active={statusFilter === 'all'} variant="gold" onClick={() => setStatusFilter('all')}>Todo</FilterPill>
-                <FilterPill active={statusFilter === 'live'} variant="cyan" onClick={() => setStatusFilter('live')}>Vivo</FilterPill>
-                <FilterPill active={statusFilter === 'final'} variant="gold" onClick={() => setStatusFilter('final')}>Final</FilterPill>
-                <span className="h-5 w-px bg-white/15"></span>
-                <FilterSelect
-                    value={typeFilter}
-                    onChange={setTypeFilter}
-                    options={[
-                        { value: 'all', label: 'Todos' },
-                        { value: 'individual', label: 'Indiv.' },
-                        { value: 'fourball', label: 'M. Bola' },
-                    ]}
-                    ariaLabel="Filtrar tipo de partido"
-                />
+                <div className="flex items-center gap-1.5">
+                    <FilterPill active={statusFilter === 'all'} variant="gold" onClick={() => setStatusFilter('all')}>Todo</FilterPill>
+                    <FilterPill active={statusFilter === 'live'} variant="cyan" onClick={() => setStatusFilter('live')}>Vivo</FilterPill>
+                    <FilterPill active={statusFilter === 'final'} variant="gold" onClick={() => setStatusFilter('final')}>Final</FilterPill>
+                    <span className="h-5 w-px bg-white/15"></span>
+                    <FilterSelect
+                        value={typeFilter}
+                        onChange={setTypeFilter}
+                        options={[
+                            { value: 'all', label: 'Todos' },
+                            { value: 'individual', label: 'Indiv.' },
+                            { value: 'fourball', label: 'M. Bola' },
+                        ]}
+                        ariaLabel="Filtrar tipo de partido"
+                    />
+                </div>
             </div>
 
             {individualMatches.length > 0 && (
