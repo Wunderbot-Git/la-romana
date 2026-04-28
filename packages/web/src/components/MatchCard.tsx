@@ -48,9 +48,22 @@ export function MatchCard({ match, onToggle, expandedContent }: MatchCardProps) 
     const isFinal = match.isComplete;
     const isNotStarted = match.finalStatus === 'Not Started' || match.holesPlayed === 0;
 
-    // Determine current leader (for gradient choice)
-    const redIsLeading = isRedWin || (!isBlueWin && match.redPoints > match.bluePoints);
-    const blueIsLeading = isBlueWin || (!isRedWin && match.bluePoints > match.redPoints);
+    // Determine current leader (for gradient + glow + ring).
+    // redPoints/bluePoints only update on finished matches, so for live matches
+    // we count hole winners directly. "A/S" stays neutral (no leader colour).
+    let liveLeader: 'red' | 'blue' | null = null;
+    if (!isAS && !isNotStarted) {
+        if (isRedWin) liveLeader = 'red';
+        else if (isBlueWin) liveLeader = 'blue';
+        else {
+            const redHoles = match.holes.filter(h => h.winner === 'red').length;
+            const blueHoles = match.holes.filter(h => h.winner === 'blue').length;
+            if (redHoles > blueHoles) liveLeader = 'red';
+            else if (blueHoles > redHoles) liveLeader = 'blue';
+        }
+    }
+    const redIsLeading = liveLeader === 'red';
+    const blueIsLeading = liveLeader === 'blue';
 
     // ── CENTER BADGE TEXT ────────────────────────────────────────────────────
     let statusTop: React.ReactNode;
@@ -79,12 +92,18 @@ export function MatchCard({ match, onToggle, expandedContent }: MatchCardProps) 
     }
 
     // ── CENTER BADGE GRADIENT ────────────────────────────────────────────────
+    // Live in-progress: stays silver (neutral); only FINAL switches to team
+    // gradient. Leader during play is signalled via the colored badge border
+    // + shadow further down.
     let centerGradient = 'bg-[#1c2f3e]';                                              // not started fallback
     if (!isNotStarted) {
-        if (isAS) centerGradient = 'bg-gradient-to-b from-[#9aa3ad] to-[#5b6470]';    // silver — halved
-        else if (redIsLeading) centerGradient = 'bg-gradient-to-b from-[#FFE082] via-[#F0C850] to-[#B97813]'; // gold — Piratas
-        else if (blueIsLeading) centerGradient = 'bg-gradient-to-b from-[#A8D0F0] via-[#5BA6DC] to-[#2E5F8E]'; // ice — Fantasmas
-        else centerGradient = 'bg-gradient-to-b from-[#9aa3ad] to-[#5b6470]';         // tied with no points yet
+        if (isFinal && redIsLeading) {
+            centerGradient = 'bg-gradient-to-b from-[#FFE082] via-[#F0C850] to-[#B97813]'; // gold — Piratas final
+        } else if (isFinal && blueIsLeading) {
+            centerGradient = 'bg-gradient-to-b from-[#A8D0F0] via-[#5BA6DC] to-[#2E5F8E]'; // ice — Fantasmas final
+        } else {
+            centerGradient = 'bg-gradient-to-b from-[#9aa3ad] to-[#5b6470]';           // silver — live or tied
+        }
     }
 
     // ── PANEL ACCENT BORDERS ─────────────────────────────────────────────────
@@ -166,13 +185,24 @@ export function MatchCard({ match, onToggle, expandedContent }: MatchCardProps) 
                     )}
                     <div
                         className={`relative w-full py-2.5 rounded-2xl border-[3px] flex flex-col items-center justify-center overflow-hidden ${centerGradient} ${
-                            isNotStarted ? 'border-[#3a3a5e] shadow-none' : 'border-[#1e293b] shadow-[0_5px_0_#1e293b]'
+                            isNotStarted ? 'border-[#3a3a5e] shadow-none' : ''
                         }`}
                         style={
-                            !isNotStarted && glowColor
-                                ? {
-                                    boxShadow: `0 5px 0 #1e293b, 0 0 18px rgba(${glowColor},${isFinal ? 0.55 : 0.32})`,
-                                }
+                            !isNotStarted
+                                ? glowColor
+                                    ? {
+                                        // Leader detected → team-colored border + glow halo + dark drop-shadow stays.
+                                        borderColor: redIsLeading ? '#F0C850' : '#5BA6DC',
+                                        boxShadow:
+                                            `0 5px 0 #1e293b, ` +
+                                            `0 0 0 2px rgba(${glowColor},0.35), ` +
+                                            `0 0 18px rgba(${glowColor},${isFinal ? 0.6 : 0.45})`,
+                                    }
+                                    : {
+                                        // No leader (A/S) → keep dark navy ring.
+                                        borderColor: '#1e293b',
+                                        boxShadow: '0 5px 0 #1e293b',
+                                    }
                                 : undefined
                         }
                     >
