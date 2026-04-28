@@ -104,6 +104,9 @@ function SectionA({ pots }: { pots: PotADay[] }) {
                         <span className="font-bangers text-[#fbbc05]">$100 + $50</span> por día
                     </div>
                 </div>
+                <div className="mt-1.5 font-fredoka text-[10px] text-white/40">
+                    Mejor neto del día (gross − strokes). Cuanto menor, mejor.
+                </div>
             </div>
 
             <div className="divide-y divide-[#31316b]/40">
@@ -149,6 +152,9 @@ function DayStandingRow({ s }: { s: PotADayStanding }) {
     const teamForAvatar: 'red' | 'blue' = s.team === 'blue' ? 'blue' : 'red';
     const teamColor = s.team === 'red' ? 'text-team-red' : s.team === 'blue' ? 'text-team-blue' : 'text-white';
     const isWinner = s.rank === 1 || s.rank === 2;
+    const scoreLabel = s.netScore !== null
+        ? (s.holesPlayed < 18 ? `${s.netScore} net · ${s.holesPlayed}/18` : `${s.netScore} net`)
+        : '—';
     return (
         <div className={`flex items-center justify-between rounded-[10px] border px-2.5 py-1.5 ${
             isWinner ? 'border-[#fbbc05]/40 bg-[#fbbc05]/8' : 'border-[#31316b]/60 bg-[#0a1322]/60'
@@ -161,7 +167,7 @@ function DayStandingRow({ s }: { s: PotADayStanding }) {
                 </span>
             </div>
             <div className="ml-2 flex items-baseline gap-2">
-                <span className="font-fredoka text-[10px] uppercase text-white/45">{s.stablefordPoints} pts</span>
+                <span className="font-fredoka text-[10px] uppercase text-white/45">{scoreLabel}</span>
                 {s.payout > 0 && (
                     <span className="rounded-full bg-[#fbbc05]/20 px-2 py-0.5 font-bowlby text-[12px] text-[#fbbc05]">
                         {formatCurrency(s.payout)}

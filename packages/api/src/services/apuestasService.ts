@@ -23,8 +23,13 @@ export interface PotADayStanding {
     playerId: string;
     playerName: string;
     team: 'red' | 'blue' | null;
+    /** Net stroke total for the day (sum of gross − strokes per hole). Lower is better. null if not played. */
+    netScore: number | null;
+    /** Number of holes the player has scored in this round (for partial-round display). */
+    holesPlayed: number;
+    /** Stableford cumulative for this round — kept for reference / display. */
     stablefordPoints: number;
-    /** Place in this round's daily ranking (1-based). null if not played yet. */
+    /** Place in this round's daily ranking (1-based). null if round not finished by player. */
     rank: number | null;
     /** Dollar payout for this player on this day. */
     payout: number;
@@ -135,42 +140,61 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
         });
     const numHumans = humanStandings.length;
 
-    // ── POT A — per-round Mejor del Día ──────────────────────────────────────
+    // ── POT A — per-round Mejor del Día (net stroke score, lower = better) ─
+    // Stableford caps blow-up holes at 0, which doesn't actually penalize bad
+    // holes. For "neto" daily we use the raw net stroke total
+    // (sum of gross − strokes per hole) — every shot counts.
     interface DayRow {
         playerId: string;
         playerName: string;
         team: 'red' | 'blue' | null;
+        netScore: number | null;     // null if round not played at all
+        holesPlayed: number;
         stablefordPoints: number;
-        played: boolean;
+        completed: boolean;          // all 18 holes scored
     }
     const potA: PotADay[] = lb.rounds.map(round => {
         const dayPool = numHumans * DAILY_CONTRIB_PER_PLAYER.potA;
         const standings: DayRow[] = humanStandings
             .map(s => {
                 const br = s.byRound?.find(r => r.roundNumber === round.roundNumber);
-                const pts = br?.stablefordPoints ?? 0;
+                const holes = br?.holes ?? [];
+                const playedHoles = holes.filter(h => h.grossScore !== null && h.netScore !== null);
+                const netScore = playedHoles.length > 0
+                    ? playedHoles.reduce((sum, h) => sum + (h.netScore ?? 0), 0)
+                    : null;
                 return {
                     playerId: s.playerId,
                     playerName: s.playerName,
                     team: s.team,
-                    stablefordPoints: pts,
-                    played: !!br && pts > 0,
+                    netScore,
+                    holesPlayed: playedHoles.length,
+                    stablefordPoints: br?.stablefordPoints ?? 0,
+                    completed: playedHoles.length === 18,
                 };
             })
-            .sort((a, b) => b.stablefordPoints - a.stablefordPoints || a.playerName.localeCompare(b.playerName));
+            // Lower net is better. Players with no net come last.
+            .sort((a, b) => {
+                if (a.netScore === null && b.netScore === null) return a.playerName.localeCompare(b.playerName);
+                if (a.netScore === null) return 1;
+                if (b.netScore === null) return -1;
+                return a.netScore - b.netScore || a.playerName.localeCompare(b.playerName);
+            });
 
-        // Rank only those who actually played; others get rank=null
+        // Only fully-played rounds (18 holes) are rankable for daily payout.
         let nextRank = 1;
         const ranked: PotADayStanding[] = standings.map(s => {
             const result: PotADayStanding = {
                 playerId: s.playerId,
                 playerName: s.playerName,
                 team: s.team,
+                netScore: s.netScore,
+                holesPlayed: s.holesPlayed,
                 stablefordPoints: s.stablefordPoints,
                 rank: null,
                 payout: 0,
             };
-            if (s.played) {
+            if (s.completed) {
                 result.rank = nextRank;
                 if (nextRank === 1) result.payout = DAILY_PAYOUTS_POT_A.first;
                 else if (nextRank === 2) result.payout = DAILY_PAYOUTS_POT_A.second;

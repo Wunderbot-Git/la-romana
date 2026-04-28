@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La Romana 2026 — Admin Links</title>
+<style>
+  :root {
+    --gold: #fbbc05;
+    --gold-dark: #b97813;
+    --navy: #0f172b;
+    --navy-mid: #1c2f3e;
+    --navy-light: #31316b;
+    --ink: #1e293b;
+    --red: #F0C850;
+    --blue: #5BA6DC;
+    --white: #ffffff;
+    --grey: #5b6470;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background:
+      radial-gradient(ellipse at top, #1c2f3e 0%, #0a1322 70%),
+      #0a1322;
+    color: #e8e8e8;
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  header {
+    text-align: left;
+    margin-bottom: 28px;
+  }
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold);
+    opacity: 0.85;
+    font-weight: 700;
+  }
+  h1 {
+    margin: 4px 0 0;
+    font-size: 36px;
+    font-weight: 800;
+    color: white;
+    letter-spacing: 0.02em;
+    text-shadow: 0 3px 0 rgba(7,16,27,0.85), 0 0 18px rgba(240,200,80,0.18);
+  }
+  .sub {
+    color: rgba(255,255,255,0.55);
+    font-size: 12px;
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  section {
+    background: linear-gradient(180deg, var(--navy-mid) 0%, var(--navy) 100%);
+    border: 2px solid var(--navy-light);
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+  .section-head {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(251,188,5,0.85);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .section-title {
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 12px 0;
+  }
+  .creds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .creds .chip {
+    background: rgba(251,188,5,0.10);
+    border: 1px solid rgba(251,188,5,0.4);
+    color: var(--gold);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .links { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  a.link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 16px;
+    background: rgba(10,19,34,0.7);
+    border: 2px solid var(--navy-light);
+    border-radius: 12px;
+    text-decoration: none;
+    color: white;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.05s ease;
+  }
+  a.link:hover, a.link:focus {
+    border-color: var(--gold);
+    background: rgba(15,23,43,0.85);
+    outline: none;
+  }
+  a.link:active { transform: translateY(1px); }
+  .link-label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+  }
+  .link-title {
+    font-weight: 700;
+    font-size: 15px;
+    color: white;
+  }
+  .link-meta {
+    font-size: 11px;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .link-arrow {
+    color: var(--gold);
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .pill-r1 { color: #F0C850; }
+  .pill-r2 { color: #82c8ff; }
+  .pill-r3 { color: #b3e8c5; }
+  .footer {
+    margin-top: 20px;
+    text-align: center;
+    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+    font-style: italic;
+  }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    background: rgba(255,255,255,0.06);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: rgba(255,255,255,0.9);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">La Romana 2026</div>
+    <h1>Admin · Quick Links</h1>
+    <div class="sub">Tap a link to open</div>
+  </header>
+
+  <section>
+    <div class="section-head">Acceso</div>
+    <h2 class="section-title">Login &amp; Passwort</h2>
+    <div class="creds">
+      <span class="chip">organizer@laromana.golf</span>
+      <span class="chip">Par00</span>
+    </div>
+    <div class="creds">
+      <span class="chip">Admin-Gate: Qayedc-1</span>
+    </div>
+    <div class="link-meta" style="margin-top:8px">
+      Reihenfolge: erst App-Login, dann Admin-Gate-Modal
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">Spieler &amp; Rondas</div>
+    <h2 class="section-title">Verwaltung</h2>
+    <div class="links">
+      <a class="link" href="https://la-romana-web-r7d222zdqa-uc.a.run.app/admin/events/5d898f98-881d-4efa-a58a-952bdff081e7/players" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">Gestión de Jugadores</span>
+          <span class="link-meta">Names · HCP · Default-Tee · Invites</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link" href="https://la-romana-web-r7d222zdqa-uc.a.run.app/admin/events/5d898f98-881d-4efa-a58a-952bdff081e7/rounds" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">Rondas — Übersicht</span>
+          <span class="link-meta">Allowance · State pro Runde</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">Compose Flights</div>
+    <h2 class="section-title">Day-of: Pairings + Tees</h2>
+    <div class="links">
+      <a class="link" href="https://la-romana-web-r7d222zdqa-uc.a.run.app/admin/events/5d898f98-881d-4efa-a58a-952bdff081e7/rounds/579ce6b1-31ef-4145-b0c8-6c8d6a6a9b56/flights" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title pill-r1">R1 — Teeth of the Dog</span>
+          <span class="link-meta">29.04.2026</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link" href="https://la-romana-web-r7d222zdqa-uc.a.run.app/admin/events/5d898f98-881d-4efa-a58a-952bdff081e7/rounds/a7898630-332e-4a19-986b-ca5d464fbb2d/flights" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title pill-r2">R2 — Ocean's 4</span>
+          <span class="link-meta">01.05.2026</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link" href="https://la-romana-web-r7d222zdqa-uc.a.run.app/admin/events/5d898f98-881d-4efa-a58a-952bdff081e7/rounds/69e8404e-31f8-473f-b29d-318b2546010d/flights" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title pill-r3">R3 — Dye Fore (Marina + Chavón)</span>
+          <span class="link-meta">02.05.2026</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">App</div>
+    <h2 class="section-title">Player-Sicht (zum Testen)</h2>
+    <div class="links">
+      <a class="link" href="https://la-romana-web-r7d222zdqa-uc.a.run.app/" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">App-Home</span>
+          <span class="link-meta">Login → Marcador</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link" href="https://la-romana-web-r7d222zdqa-uc.a.run.app/leaderboard" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">Marcador (Ryder Cup live)</span>
+          <span class="link-meta">/leaderboard</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link" href="https://la-romana-web-r7d222zdqa-uc.a.run.app/score" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">Scores</span>
+          <span class="link-meta">/score (auto-redirects to your flight)</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link" href="https://la-romana-web-r7d222zdqa-uc.a.run.app/apuestas" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">Apuestas (3-Pot Dashboard)</span>
+          <span class="link-meta">/apuestas</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link" href="https://la-romana-web-r7d222zdqa-uc.a.run.app/ranking" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">Ranking · Stableford</span>
+          <span class="link-meta">/ranking (Total · Día 1/2/3)</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">Build &amp; Deploy</div>
+    <h2 class="section-title">DevOps Konsolen</h2>
+    <div class="links">
+      <a class="link" href="https://console.cloud.google.com/cloud-build/builds?project=la-romana-2026" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">Cloud Build · Live-Builds</span>
+          <span class="link-meta">Auto-Deploy Logs</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link" href="https://console.cloud.google.com/cloud-build/triggers?project=la-romana-2026" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">Cloud Build · Trigger</span>
+          <span class="link-meta">la-romana-main-deploy</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link" href="https://console.cloud.google.com/run?project=la-romana-2026" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">Cloud Run · Services</span>
+          <span class="link-meta">la-romana-api · la-romana-web</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link" href="https://console.cloud.google.com/sql/instances?project=la-romana-2026" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">Cloud SQL · la-romana-db</span>
+          <span class="link-meta">Postgres 15</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link" href="https://github.com/Wunderbot-Git/la-romana" target="_blank" rel="noopener">
+        <div class="link-label">
+          <span class="link-title">GitHub Repo</span>
+          <span class="link-meta">Wunderbot-Git/la-romana</span>
+        </div>
+        <span class="link-arrow">→</span>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">IDs</div>
+    <h2 class="section-title">Referenz</h2>
+    <div class="link-meta" style="line-height:1.7;color:rgba(255,255,255,0.7)">
+      Event ID: <code>5d898f98-881d-4efa-a58a-952bdff081e7</code><br>
+      R1 ID: <code>579ce6b1-31ef-4145-b0c8-6c8d6a6a9b56</code><br>
+      R2 ID: <code>a7898630-332e-4a19-986b-ca5d464fbb2d</code><br>
+      R3 ID: <code>69e8404e-31f8-473f-b29d-318b2546010d</code><br>
+      GCP Project: <code>la-romana-2026</code><br>
+      Cloud SQL: <code>la-romana-2026:us-central1:la-romana-db</code>
+    </div>
+  </section>
+
+  <div class="footer">
+    Speichere diese Datei als Lesezeichen oder schick sie dir per AirDrop aufs Phone.<br>
+    Generiert 2026-04-27 für den Admin-Workflow vor Ort.
+  </div>
+
+</div>
+</body>
+</html>

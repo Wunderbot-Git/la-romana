@@ -7,6 +7,11 @@ export interface PotADayStanding {
     playerId: string;
     playerName: string;
     team: 'red' | 'blue' | null;
+    /** Net stroke total (sum of gross − strokes per hole). Lower is better. */
+    netScore: number | null;
+    /** Number of holes scored so far (0..18). */
+    holesPlayed: number;
+    /** Stableford day points — kept for reference, not used for ranking. */
     stablefordPoints: number;
     rank: number | null;
     payout: number;

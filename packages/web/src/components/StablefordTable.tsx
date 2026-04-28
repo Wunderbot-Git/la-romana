@@ -33,14 +33,30 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
     // Filter out phantom + apply day filter where applicable
     const allStandings = data.stablefordStandings.filter(s => s.playerName !== 'Fantasma');
 
+    // Day filter: rank by net stroke total (sum of gross − strokes per hole).
+    // Lower is better. Players with no scored holes are excluded.
     const standings = isDayFilter
         ? allStandings
-              .map(s => ({
-                  ...s,
-                  _dayPoints: s.byRound?.find(r => r.roundNumber === dayNumber)?.stablefordPoints ?? 0,
-              }))
-              .filter(s => s._dayPoints > 0)
-              .sort((a, b) => b._dayPoints - a._dayPoints || a.playerName.localeCompare(b.playerName))
+              .map(s => {
+                  const round = s.byRound?.find(r => r.roundNumber === dayNumber);
+                  const holes = round?.holes ?? [];
+                  const played = holes.filter(h => h.grossScore !== null && h.netScore !== null);
+                  const dayNet = played.length > 0
+                      ? played.reduce((sum, h) => sum + (h.netScore ?? 0), 0)
+                      : null;
+                  return {
+                      ...s,
+                      _dayNet: dayNet,
+                      _dayHolesPlayed: played.length,
+                  };
+              })
+              .filter(s => s._dayHolesPlayed > 0)
+              .sort((a, b) => {
+                  if (a._dayNet === null && b._dayNet === null) return a.playerName.localeCompare(b.playerName);
+                  if (a._dayNet === null) return 1;
+                  if (b._dayNet === null) return -1;
+                  return a._dayNet - b._dayNet || a.playerName.localeCompare(b.playerName);
+              })
         : [...allStandings].sort(
               (a, b) => b.stablefordCumulative - a.stablefordCumulative || a.playerName.localeCompare(b.playerName),
           );
@@ -107,7 +123,7 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
         prevPoints.current = new Map(
             standings.map(s => [
                 s.playerId,
-                isDayFilter ? (s as any)._dayPoints ?? 0 : s.stablefordCumulative,
+                isDayFilter ? (s as any)._dayNet ?? 0 : s.stablefordCumulative,
             ]),
         );
     });
@@ -120,7 +136,7 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
                         <th className="px-2 py-2 text-left w-8">#</th>
                         <th className="px-2 py-2 text-left">Jugador</th>
                         <th className="px-2 py-2 text-center">HCP</th>
-                        <th className="px-2 py-2 text-right">{isDayFilter ? 'Pts día' : 'Pts'}</th>
+                        <th className="px-2 py-2 text-right">{isDayFilter ? 'Net' : 'Pts'}</th>
                         <th className="px-2 py-2 text-center">{isDayFilter ? 'Premio' : 'Rondas'}</th>
                     </tr>
                 </thead>
@@ -134,7 +150,7 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
                                 : s.team === 'blue'
                                 ? 'text-team-blue'
                                 : 'text-white';
-                        const dayPoints = isDayFilter ? (s as any)._dayPoints ?? 0 : s.stablefordCumulative;
+                        const dayPoints = isDayFilter ? (s as any)._dayNet ?? 0 : s.stablefordCumulative;
                         const payout = isDayFilter ? (i === 0 ? 100 : i === 1 ? 50 : 0) : 0;
                         return (
                             <Fragment key={s.playerId}>
