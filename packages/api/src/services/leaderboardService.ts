@@ -488,6 +488,16 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
         let roundBlueProjected = 0;
         const flightSummaries: FlightRoundSummary[] = [];
 
+        // Round hasn't been composed yet → project all expected matches as not-started
+        // (matches the leaderboard footer promise: "0.5/0.5 sin empezar"). Standard
+        // format: 4 players per flight (2 red + 2 blue), 3 matches per flight, so each
+        // expected flight contributes 1.5/1.5 to projection.
+        if (flights.length === 0) {
+            const expectedFlights = Math.ceil(roster.length / 4);
+            roundRedProjected = expectedFlights * 1.5;
+            roundBlueProjected = expectedFlights * 1.5;
+        }
+
         for (const flight of flights) {
             const flightScores = await getFlightHoleScores(flight.id);
             const scoresByPlayer = new Map<string, Map<number, number | null>>();
