@@ -121,8 +121,8 @@ function RyderTab({ data }: { data: LeaderboardData }) {
                 onSelect={setSelectedRoundId}
             />
 
-            {/* Round score summary */}
-            <div className={`${CARD_GOLD} px-4 py-3 flex items-center justify-between`}>
+            {/* Round score summary — sticky so the score stays visible while scrolling matches */}
+            <div className={`${CARD_GOLD} sticky top-0 z-30 -mx-4 px-4 py-3 flex items-center justify-between rounded-none border-x-0 sm:mx-0 sm:rounded-[16px] sm:border-x-[2px]`}>
                 <div>
                     <div className="text-[10px] text-[#fbbc05]/80 uppercase font-bangers tracking-widest">Round {round.roundNumber}</div>
                     <div className="font-bangers tracking-wider text-white text-lg">{round.courseName}</div>

@@ -121,7 +121,7 @@ export function TeamScoreHeader({
                     {showProjected && (
                         <div className="relative z-10 mx-auto mt-3 w-full max-w-[316px] cursor-pointer px-2" onClick={onToggleCurrent}>
                             <div
-                                className="grid grid-cols-[34px_minmax(34px,auto)_minmax(0,1fr)_34px_minmax(34px,auto)] items-center gap-x-1.5 rounded-full border border-[#6fa6d7]/55 px-2 py-1.5"
+                                className="grid grid-cols-[34px_minmax(34px,auto)_minmax(0,1fr)_minmax(34px,auto)_34px] items-center gap-x-1.5 rounded-full border border-[#6fa6d7]/55 px-2 py-1.5"
                                 style={{
                                     background:
                                         'linear-gradient(90deg, rgba(35,22,10,0.94) 0%, rgba(8,16,27,0.96) 50%, rgba(10,34,56,0.96) 100%)',
@@ -136,10 +136,10 @@ export function TeamScoreHeader({
                                 <span className="justify-self-center font-bangers text-[16px] uppercase leading-none text-[#ffe7a2] drop-shadow-[0_2px_0_#251304]">
                                     PROYECTADO
                                 </span>
-                                <img src="/images/crest-fantasmas.webp" alt="Fantasmas" className="h-8 w-8 justify-self-center drop-shadow-[0_2px_2px_rgba(0,0,0,0.72)]" />
                                 <span className="justify-self-center font-bowlby text-[26px] leading-none text-[#8ed2ff] drop-shadow-[0_2px_0_#07101b]">
                                     {projectedBlueText}
                                 </span>
+                                <img src="/images/crest-fantasmas.webp" alt="Fantasmas" className="h-8 w-8 drop-shadow-[0_2px_2px_rgba(0,0,0,0.72)]" />
                             </div>
                         </div>
                     )}
