@@ -100,7 +100,7 @@ export const calculateFlightMatches = (input: FlightMatchesInput): FlightMatches
             finalStatus: singles1.result.finalStatus,
             redPoints: singles1.result.redPoints,
             bluePoints: singles1.result.bluePoints,
-            holesPlayed: singles1.holes.length,
+            holesPlayed: singles1.finalState.holesPlayed,
             isComplete: singles1.finalState.holesRemaining === 0 || singles1.finalState.isDecided,
         });
         totalRedPoints += singles1.result.redPoints;
@@ -136,7 +136,7 @@ export const calculateFlightMatches = (input: FlightMatchesInput): FlightMatches
             finalStatus: singles2.result.finalStatus,
             redPoints: singles2.result.redPoints,
             bluePoints: singles2.result.bluePoints,
-            holesPlayed: singles2.holes.length,
+            holesPlayed: singles2.finalState.holesPlayed,
             isComplete: singles2.finalState.holesRemaining === 0 || singles2.finalState.isDecided,
         });
         totalRedPoints += singles2.result.redPoints;
@@ -190,7 +190,7 @@ export const calculateFlightMatches = (input: FlightMatchesInput): FlightMatches
             finalStatus: fourball.result.finalStatus,
             redPoints: fourball.result.redPoints,
             bluePoints: fourball.result.bluePoints,
-            holesPlayed: fourball.holes.length,
+            holesPlayed: fourball.finalState.holesPlayed,
             isComplete: fourball.finalState.holesRemaining === 0 || fourball.finalState.isDecided,
         });
         totalRedPoints += fourball.result.redPoints;

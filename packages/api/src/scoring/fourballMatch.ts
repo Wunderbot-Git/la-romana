@@ -139,12 +139,14 @@ export const calculateFourballMatch = (input: FourballMatchInput): FourballMatch
             winner = 'blue'; // Red team picked up
         } else {
             // Both picked up (or unplayed)
-            // If ALL players are null, it's likely unplayed. Break.
+            // If ALL 4 players are null, the hole hasn't been played yet — skip
+            // (not break) so shotgun-start orders (tee off on hole 10) score
+            // correctly once enough holes finish.
             const allUnplayed =
                 redP1Gross === null && redP2Gross === null &&
                 blueP1Gross === null && blueP2Gross === null;
 
-            if (allUnplayed) break;
+            if (allUnplayed) continue;
 
             // Otherwise, it's a halved hole (everyone picked up)
             winner = null;
