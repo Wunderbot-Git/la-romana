@@ -307,6 +307,12 @@ export const getFlightScoreboardData = async (flightId: string) => {
                 handicapIndex: pData.hcp,
                 grossScores: pData.scores,
                 strokeIndexes: pData.siValues,
+                // Course-aware Playing HCPs (per round allowance + tee slope/rating).
+                // Without these, flightMatchCalculator falls back to `index × 0.8`,
+                // which can disagree with the leaderboard's match engine by 1-2
+                // strokes per player and produce a different running match status.
+                playingHcpSingles: pData.playingHcpSingles,
+                playingHcpFourball: pData.playingHcpFourball,
             };
         };
 
