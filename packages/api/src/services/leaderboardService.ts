@@ -566,7 +566,9 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
                     summary: MatchSummary
                 ): MatchDetail => {
                     const holes: MatchHoleDetail[] = Array.from({ length: 18 }, (_, i) => {
-                        const h = output?.holes[i];
+                        // Look up by holeNumber, not array index — the engine now skips
+                        // unplayed holes (shotgun-start support), so output.holes is sparse.
+                        const h = output?.holes.find(hh => hh.holeNumber === i + 1);
                         const par = teeData.parValues[i] ?? 4;
                         const si = teeData.defaultSi[i] ?? i + 1;
                         if (!h) return emptyHoleDetail(i + 1, par, si, 1, 1);
@@ -597,7 +599,8 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
                     summary: MatchSummary
                 ): MatchDetail => {
                     const holes: MatchHoleDetail[] = Array.from({ length: 18 }, (_, i) => {
-                        const h = output?.holes[i];
+                        // Look up by holeNumber, not array index — see buildSingles for rationale.
+                        const h = output?.holes.find(hh => hh.holeNumber === i + 1);
                         const par = teeData.parValues[i] ?? 4;
                         const si = teeData.defaultSi[i] ?? i + 1;
                         if (!h) return emptyHoleDetail(i + 1, par, si, 2, 2);

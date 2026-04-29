@@ -105,8 +105,10 @@ export const calculateSinglesMatch = (input: SinglesMatchInput): SinglesMatchOut
         const redGross = input.redPlayer.grossScores[i];
         const blueGross = input.bluePlayer.grossScores[i];
 
-        // If either player has no score (null or 0), stop calculation
-        if (!redGross || !blueGross) break;
+        // Hole not yet played (null/0 = no score row in DB).
+        // Skip — does NOT terminate the match calc, so shotgun-start orders
+        // (e.g. tee off on hole 10) are scored correctly once enough holes finish.
+        if (!redGross || !blueGross) continue;
 
         // Full Handicap Match Play: each player's strokes resolved against their OWN SI
         const redStrokes = getStrokesForHole(redPH, redStrokeIndex);
