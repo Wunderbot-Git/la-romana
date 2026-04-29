@@ -126,6 +126,32 @@ export function ScoreGrid({ flightScore, onHoleClick, pendingScores = {}, scroll
     const allHoles = Array.from({ length: flightScore.parValues.length }, (_, i) => i + 1);
     const visibleHoles = half === 'back' ? allHoles.slice(9) : allHoles.slice(0, 9);
 
+    /**
+     * Detect the shotgun-start hoyo (1..18) for this flight from the score data,
+     * and return the play-order: [start, start+1, ..., 18, 1, ..., start-1].
+     *
+     * Heuristic: a hoyo is the start of a contiguous play run if it has a score
+     * and its predecessor (with wraparound, so prev(1)=18) does not. For shotgun
+     * starts that's the unique start hoyo; for regular start at hoyo 1 the
+     * predecessor is hoyo 18 which is empty, so it returns [1..18] as expected.
+     * Falls back to [1..18] if no scores yet.
+     */
+    const playOrder: number[] = (() => {
+        const anyPlayed = (h: number): boolean => {
+            for (const p of [...flightScore.redPlayers, ...flightScore.bluePlayers]) {
+                if (p.scores[h - 1] !== null) return true;
+            }
+            return false;
+        };
+        const total = allHoles.length;
+        let start = 1;
+        for (let h = 1; h <= total; h++) {
+            const prev = h === 1 ? total : h - 1;
+            if (anyPlayed(h) && !anyPlayed(prev)) { start = h; break; }
+        }
+        return Array.from({ length: total }, (_, i) => ((start - 1 + i) % total) + 1);
+    })();
+
     useEffect(() => {
         if (scrollToHole && scrollRef.current) {
             const holeEl = document.getElementById(`hole-header-${scrollToHole}`);
@@ -252,20 +278,31 @@ export function ScoreGrid({ flightScore, onHoleClick, pendingScores = {}, scroll
         if (!singlesHoles) return null;
 
         const holePlayed = (h: number) => red.scores[h - 1] !== null || blue.scores[h - 1] !== null;
+
+        // Build per-hoyo running state in PLAY ORDER (shotgun-aware), not
+        // hoyo-number order. Without this, the pill on hoyo 1 after a
+        // shotgun start at 10 would read "1UP" (just hoyo 1 alone) instead
+        // of cumulative through 10..18..1 like real match-play scoring.
+        const runningByHole: Record<number, number> = {};
         let running = 0;
-        const states: { status: string; leader: 'red' | 'blue' | null; played: boolean }[] = [];
-        for (const h of holeNumbers) {
+        for (const h of playOrder) {
             const w = singlesHoles[h - 1];
             if (w === 'red') running++;
             else if (w === 'blue') running--;
+            runningByHole[h] = running;
+        }
+
+        const states: { status: string; leader: 'red' | 'blue' | null; played: boolean }[] = [];
+        for (const h of holeNumbers) {
             const played = holePlayed(h);
             if (!played) {
                 states.push({ status: '', leader: null, played: false });
             } else {
-                const abs = Math.abs(running);
+                const r = runningByHole[h] ?? 0;
+                const abs = Math.abs(r);
                 states.push({
-                    status: running === 0 ? 'A/S' : `${abs}UP`,
-                    leader: running > 0 ? 'red' : running < 0 ? 'blue' : null,
+                    status: r === 0 ? 'A/S' : `${abs}UP`,
+                    leader: r > 0 ? 'red' : r < 0 ? 'blue' : null,
                     played: true,
                 });
             }
@@ -314,7 +351,30 @@ export function ScoreGrid({ flightScore, onHoleClick, pendingScores = {}, scroll
         );
     };
 
-    /** Fourball/Best-Ball match status row — uses precomputed matchProgression + matchLeaders. */
+    /** Fourball/Best-Ball match status row — running cumulative in play order
+     *  (shotgun-aware), computed from holeWinners. The API's matchProgression is
+     *  cumulative-by-hoyo-number, which gives wrong pills on hoyos played AFTER
+     *  the wraparound from 18 → 1 in shotgun rotations. */
+    const fourballRunning: Record<number, { status: string; leader: 'red' | 'blue' | null; played: boolean }> = (() => {
+        const map: Record<number, { status: string; leader: 'red' | 'blue' | null; played: boolean }> = {};
+        let r = 0;
+        for (const h of playOrder) {
+            const w = flightScore.holeWinners?.[h - 1] ?? null;
+            const played = w !== null
+                || flightScore.redPlayers.some(p => p.scores[h - 1] !== null)
+                || flightScore.bluePlayers.some(p => p.scores[h - 1] !== null);
+            if (w === 'red') r++;
+            else if (w === 'blue') r--;
+            const abs = Math.abs(r);
+            map[h] = {
+                status: !played ? '' : r === 0 ? 'A/S' : `${abs}UP`,
+                leader: r > 0 ? 'red' : r < 0 ? 'blue' : null,
+                played,
+            };
+        }
+        return map;
+    })();
+
     const renderFourballRow = (holeNumbers: number[]) => (
         <div className="relative z-20 flex h-10 border-y border-[#31316b]/60 bg-[#0a1322] shadow-inner">
             <div className="sticky left-0 z-30 flex w-32 flex-shrink-0 items-center border-r border-[#31316b] bg-[#0a1322] px-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.4)]">
@@ -324,8 +384,9 @@ export function ScoreGrid({ flightScore, onHoleClick, pendingScores = {}, scroll
             </div>
             <div className="flex flex-1 overflow-hidden">
                 {holeNumbers.map(h => {
-                    const status = flightScore.matchProgression[h - 1];
-                    const leader = flightScore.matchLeaders?.[h - 1] ?? null;
+                    const fb = fourballRunning[h];
+                    const status = fb?.played ? fb.status : '';
+                    const leader = fb?.leader ?? null;
                     if (!status) {
                         return (
                             <div key={h} className="flex min-w-[50px] items-center justify-center">
@@ -359,6 +420,8 @@ export function ScoreGrid({ flightScore, onHoleClick, pendingScores = {}, scroll
     const buildSummary = (): { label: string; status: string; leader: 'red' | 'blue' | null }[] => {
         const out: { label: string; status: string; leader: 'red' | 'blue' | null }[] = [];
 
+        // Summaries show OVERALL match status across all 18 hoyos (not just the
+        // visible 1-9 / 10-18 tab), so the value stays consistent when you flip tabs.
         for (let m = 0; m < 2; m++) {
             const red = flightScore.redPlayers[m];
             const blue = flightScore.bluePlayers[m];
@@ -369,7 +432,7 @@ export function ScoreGrid({ flightScore, onHoleClick, pendingScores = {}, scroll
             let score = 0;
             let played = false;
             if (sh) {
-                for (const h of visibleHoles) {
+                for (let h = 1; h <= 18; h++) {
                     const w = sh[h - 1];
                     if (w === 'red') { score++; played = true; }
                     else if (w === 'blue') { score--; played = true; }
@@ -382,17 +445,20 @@ export function ScoreGrid({ flightScore, onHoleClick, pendingScores = {}, scroll
             out.push({ label: `${redName} vs ${blueName}`, status, leader });
         }
 
-        // Fourball summary — last non-null in matchProgression for the visible half
-        let lastStatus = '';
-        let lastLeader: 'red' | 'blue' | null = null;
-        for (const h of visibleHoles) {
-            const s = flightScore.matchProgression[h - 1];
-            const l = flightScore.matchLeaders?.[h - 1] ?? null;
-            if (s) { lastStatus = s; lastLeader = l; }
+        // Fourball summary — final play-order state. Walk holeWinners in play order
+        // so the summary reflects cumulative through the latest played hoyo.
+        let fbScore = 0;
+        let fbPlayed = false;
+        for (const h of playOrder) {
+            const w = flightScore.holeWinners?.[h - 1];
+            if (w === 'red') { fbScore++; fbPlayed = true; }
+            else if (w === 'blue') { fbScore--; fbPlayed = true; }
         }
-        const teamName = lastLeader === 'red' ? 'Piratas' : lastLeader === 'blue' ? 'Fantasmas' : '';
-        const fbStatus = !lastStatus ? 'Sin Iniciar' : !lastLeader ? 'A/S' : `${teamName} ${lastStatus}`;
-        out.push({ label: 'Mejor Bola', status: fbStatus, leader: lastLeader });
+        const fbLeader: 'red' | 'blue' | null = fbScore > 0 ? 'red' : fbScore < 0 ? 'blue' : null;
+        const teamName = fbLeader === 'red' ? 'Piratas' : fbLeader === 'blue' ? 'Fantasmas' : '';
+        const fbAbs = Math.abs(fbScore);
+        const fbStatus = !fbPlayed ? 'Sin Iniciar' : fbScore === 0 ? 'A/S' : `${teamName} ${fbAbs} UP`;
+        out.push({ label: 'Mejor Bola', status: fbStatus, leader: fbLeader });
 
         return out;
     };
