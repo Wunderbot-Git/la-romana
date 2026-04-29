@@ -168,7 +168,12 @@ export function ScoreGrid({ flightScore, onHoleClick, pendingScores = {}, scroll
         team: 'red' | 'blue',
         holeNumbers: number[],
     ) => {
-        const ph = Math.round(player.hcp * 0.8); // fallback PH; live API also exposes course-aware PH on leaderboard
+        // Course-aware Playing HCP straight from the API (mirrors what the match engine
+        // and the leaderboard's MatchCard use). Falls back to `index × 0.8` only if the
+        // backend response doesn't carry the field — protects older clients during deploy.
+        const ph = typeof player.playingHcpSingles === 'number'
+            ? player.playingHcpSingles
+            : Math.round(player.hcp * 0.8);
         const teamTextColor = team === 'red' ? 'text-team-red' : 'text-team-blue';
         return (
             <div key={player.playerId} className="flex items-center border-b border-[#31316b]/50 last:border-0">
@@ -197,7 +202,9 @@ export function ScoreGrid({ flightScore, onHoleClick, pendingScores = {}, scroll
                             teamPlayers.forEach(tp => {
                                 const s = tp.scores[holeIdx];
                                 if (s !== null) {
-                                    const tpPh = Math.round(tp.hcp * 0.8);
+                                    const tpPh = typeof tp.playingHcpFourball === 'number'
+                                        ? tp.playingHcpFourball
+                                        : Math.round(tp.hcp * 0.8);
                                     const tpSi = tp.siValues || flightScore.parValues.map((_, i) => i + 1);
                                     const strokes = getStrokes(tpSi, tpPh, holeIdx);
                                     const net = s - strokes;

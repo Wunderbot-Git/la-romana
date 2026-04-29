@@ -14,6 +14,8 @@ import { getPool } from '../config/database';
 import { formatMatchStatus } from '../scoring/matchStatus';
 import { invalidateLeaderboardCache } from './leaderboardService';
 import { calculateFlightMatches, FlightPlayerScores } from '../scoring/flightMatchCalculator';
+import { computePlayingHandicapFromIndex } from '../scoring/handicap';
+import * as playerRoundTeeRepo from '../repositories/playerRoundTeeRepository';
 
 export interface SubmitScoreInput {
     playerId: string;
@@ -197,21 +199,25 @@ export const getFlightScoreboardData = async (flightId: string) => {
 
     const holeScores = await getFlightHoleScores(flightId);
 
-    // Fetch this round's course par + SI per tee
+    // Fetch this round's course par + SI + slope/rating per tee
     const roundRes = await pool.query(
         `SELECT r.course_id, r.hcp_singles_pct, r.hcp_fourball_pct
          FROM rounds r WHERE r.id = $1`,
         [flight.round_id]
     );
     const courseId = roundRes.rows[0]?.course_id;
+    const hcpSinglesPct = parseFloat(roundRes.rows[0]?.hcp_singles_pct ?? '0.8');
+    const hcpFourballPct = parseFloat(roundRes.rows[0]?.hcp_fourball_pct ?? '0.8');
 
     let parValues = Array(18).fill(4);
     let defaultSi = Array.from({ length: 18 }, (_, i) => i + 1);
     const teeSiMap: Record<string, number[]> = {};
+    const teeRatingMap: Record<string, { slope: number | null; rating: number | null; par: number | null }> = {};
 
     if (courseId) {
         const teesRes = await pool.query(
-            `SELECT t.id, t.name FROM tees t WHERE t.course_id = $1`,
+            `SELECT t.id, t.name, t.slope_rating, t.course_rating
+             FROM tees t WHERE t.course_id = $1`,
             [courseId]
         );
         for (const tee of teesRes.rows) {
@@ -221,14 +227,23 @@ export const getFlightScoreboardData = async (flightId: string) => {
             );
             if (holesRes.rows.length === 18) {
                 teeSiMap[tee.id] = holesRes.rows.map((h: any) => h.stroke_index);
+                const teePars = holesRes.rows.map((h: any) => h.par);
+                teeRatingMap[tee.id] = {
+                    slope: tee.slope_rating != null ? parseFloat(tee.slope_rating) : null,
+                    rating: tee.course_rating != null ? parseFloat(tee.course_rating) : null,
+                    par: teePars.reduce((a: number, b: number) => a + b, 0),
+                };
                 // Use first tee encountered as the baseline for par display
                 if (Object.keys(teeSiMap).length === 1) {
-                    parValues = holesRes.rows.map((h: any) => h.par);
+                    parValues = teePars;
                     defaultSi = holesRes.rows.map((h: any) => h.stroke_index);
                 }
             }
         }
     }
+
+    // Per-round tee overrides — same junction the match engine uses (migration 026).
+    const roundTeeMap = await playerRoundTeeRepo.getRoundTeeMap(flight.round_id);
 
     const mapPlayer = (p: any) => {
         const pScores = holeScores.filter(s => s.playerId === p.id);
@@ -238,11 +253,31 @@ export const getFlightScoreboardData = async (flightId: string) => {
                 scores[s.holeNumber - 1] = s.grossScore;
             }
         });
-        const playerSiValues = (p.tee_id && teeSiMap[p.tee_id]) || defaultSi;
+        // Per-round tee override > player default. Match engine uses the same precedence.
+        const effectiveTeeId = roundTeeMap.get(p.id) ?? p.tee_id;
+        const playerSiValues = (effectiveTeeId && teeSiMap[effectiveTeeId]) || defaultSi;
+        const teeRating = (effectiveTeeId && teeRatingMap[effectiveTeeId]) || null;
+        const handicapIndex = parseFloat(p.handicap_index) || 0;
+        const phSingles = computePlayingHandicapFromIndex({
+            handicapIndex,
+            slope: teeRating?.slope ?? null,
+            rating: teeRating?.rating ?? null,
+            par: teeRating?.par ?? null,
+            allowance: hcpSinglesPct,
+        }).playingHandicap;
+        const phFourball = computePlayingHandicapFromIndex({
+            handicapIndex,
+            slope: teeRating?.slope ?? null,
+            rating: teeRating?.rating ?? null,
+            par: teeRating?.par ?? null,
+            allowance: hcpFourballPct,
+        }).playingHandicap;
         return {
             playerId: p.id,
             playerName: [p.first_name, p.last_name].filter((n: string) => n && n !== '-').join(' ').trim(),
-            hcp: parseFloat(p.handicap_index) || 0,
+            hcp: handicapIndex,
+            playingHcpSingles: phSingles,
+            playingHcpFourball: phFourball,
             scores,
             siValues: playerSiValues,
             singlesStatus: null as string | null,
