@@ -171,6 +171,12 @@ export const deleteFlightHoleScores = async (flightId: string): Promise<number> 
     return res.rowCount || 0;
 };
 
+export const deleteRoundHoleScores = async (roundId: string): Promise<number> => {
+    const pool = getPool();
+    const res = await pool.query('DELETE FROM hole_scores WHERE round_id = $1', [roundId]);
+    return res.rowCount || 0;
+};
+
 export const deleteHoleScoresForHole = async (
     flightId: string,
     holeNumber: number
