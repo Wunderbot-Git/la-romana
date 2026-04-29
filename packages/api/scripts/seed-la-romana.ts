@@ -35,19 +35,21 @@ interface HoleData {
 // Teeth of the Dog — Casa de Campo. Azul tees (default). Par 72.
 // OUT 36 / IN 36. SIs from scorecard. Hole-by-hole par approximated to sum correctly;
 // admin can adjust per scorecard once final tee is picked.
-// Pars confirmed against the official Casa de Campo scorecard 2026-04-29.
-// Stroke indices are placeholders — verify against the same scorecard before
-// the next re-seed. Total par 72.
+// Pars + men's stroke indices confirmed against the official Casa de Campo
+// scorecard 2026-04-29 (AZUL row). Total par 72.
+// Note: women's Rojo (W) tee has a different SI ordering — applied via
+// migration 028 directly on the holes table, since add-all-tees.ts copies
+// SIs from the source men's tee by default.
 const TEETH_OF_THE_DOG: HoleData[] = [
     { hole: 1, par: 4, si: 7 },
     { hole: 2, par: 4, si: 13 },
-    { hole: 3, par: 5, si: 3 },
-    { hole: 4, par: 4, si: 11 },
-    { hole: 5, par: 3, si: 1 },
-    { hole: 6, par: 4, si: 5 },
+    { hole: 3, par: 5, si: 11 },
+    { hole: 4, par: 4, si: 3 },
+    { hole: 5, par: 3, si: 15 },
+    { hole: 6, par: 4, si: 1 },
     { hole: 7, par: 3, si: 17 },
-    { hole: 8, par: 4, si: 9 },
-    { hole: 9, par: 5, si: 15 },
+    { hole: 8, par: 4, si: 5 },
+    { hole: 9, par: 5, si: 9 },
     { hole: 10, par: 4, si: 8 },
     { hole: 11, par: 5, si: 10 },
     { hole: 12, par: 4, si: 4 },

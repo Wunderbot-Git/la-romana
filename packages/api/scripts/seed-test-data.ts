@@ -89,7 +89,7 @@ const FLIGHTS: FlightSpec[] = [
 // Pars + SI for Teeth of the Dog (mirrors seed-la-romana.ts)
 // Pars confirmed against the official Casa de Campo scorecard 2026-04-29.
 const TOTH_PARS: number[] = [4,4,5,4,3,4,3,4,5,4,5,4,3,5,4,3,4,4]; // 18 holes
-const TOTH_SIS:  number[] = [7,13,3,11,1,5,17,9,15,8,10,4,16,14,12,18,2,6];
+const TOTH_SIS:  number[] = [7,13,11,3,15,1,17,5,9,8,10,4,16,14,12,18,2,6]; // AZUL men's row
 
 // Realistic gross score generator: based on player HCP, generate plausible per-hole scores.
 // Scratch (HCP 0) → mostly par/birdie; HCP 24 → mostly bogey/double.
