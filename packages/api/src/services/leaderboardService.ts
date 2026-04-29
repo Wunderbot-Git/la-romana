@@ -300,9 +300,13 @@ const enrichedPlayerSummary = (
     r: RosterEntry,
     tee: CourseTeeData,
     round: RoundContext,
+    roundTeeId?: string | null,
 ): MatchPlayer => {
-    const strokeIndexes = (r.teeId && tee.siByTee[r.teeId]) || tee.defaultSi;
-    const teeRating = (r.teeId && tee.ratingByTee[r.teeId]) || null;
+    // Per-round tee override (migration 026) takes precedence over the player default,
+    // matching what the match engine + scoreService do.
+    const effectiveTeeId = roundTeeId ?? r.teeId;
+    const strokeIndexes = (effectiveTeeId && tee.siByTee[effectiveTeeId]) || tee.defaultSi;
+    const teeRating = (effectiveTeeId && tee.ratingByTee[effectiveTeeId]) || null;
     const phSingles = computePlayingHandicapFromIndex({
         handicapIndex: r.handicapIndex,
         slope: teeRating?.slope ?? null,
@@ -531,8 +535,8 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
             let flightRedProjected = 1.5;
             let flightBlueProjected = 1.5;
 
-            const redPlayersSummary = redSorted.map(r => enrichedPlayerSummary(r, teeData, round));
-            const bluePlayersSummary = blueSorted.map(r => enrichedPlayerSummary(r, teeData, round));
+            const redPlayersSummary = redSorted.map(r => enrichedPlayerSummary(r, teeData, round, roundTeeMap.get(r.id)));
+            const bluePlayersSummary = blueSorted.map(r => enrichedPlayerSummary(r, teeData, round, roundTeeMap.get(r.id)));
 
             let matches: MatchDetail[] = [
                 notStartedDetail('singles1', flight.id, flight.flightNumber, redPlayersSummary.slice(0, 1), bluePlayersSummary.slice(0, 1), teeData.parValues, teeData.defaultSi),

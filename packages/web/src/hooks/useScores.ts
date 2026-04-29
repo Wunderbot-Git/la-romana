@@ -18,6 +18,8 @@ export interface FlightScore {
         playerId: string;
         playerName: string;
         hcp: number;
+        playingHcpSingles?: number;
+        playingHcpFourball?: number;
         scores: (number | null)[];
         siValues?: number[];
         singlesStatus: string | null;
@@ -28,6 +30,8 @@ export interface FlightScore {
         playerId: string;
         playerName: string;
         hcp: number;
+        playingHcpSingles?: number;
+        playingHcpFourball?: number;
         scores: (number | null)[];
         siValues?: number[];
         singlesStatus: string | null;
