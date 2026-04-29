@@ -7,6 +7,7 @@ import {
     CreateHoleScoreInput,
     deleteFlightHoleScores,
     deleteHoleScoresForHole,
+    deleteRoundHoleScores,
 } from '../repositories/holeScoreRepository';
 import { createAuditLog } from '../repositories/auditRepository';
 import { getPool } from '../config/database';
@@ -366,6 +367,30 @@ export const adminDeleteFlightScores = async (eventId: string, flightId: string,
         eventId,
         entityType: 'flight_scores',
         entityId: flightId,
+        action: 'admin_delete_all',
+        previousValue: { holeScores: holeDeleted },
+        newValue: null,
+        source: 'online',
+        byUserId: userId,
+    });
+
+    invalidateLeaderboardCache(eventId);
+    return { holeDeleted };
+};
+
+/**
+ * Admin: delete *all* hole_scores for a round, regardless of flight_id.
+ * Catches orphaned rows that the flight-scoped delete misses (e.g. dirty
+ * test taps that landed without a flight composition, or rows whose flight
+ * was later deleted).
+ */
+export const adminDeleteRoundScores = async (eventId: string, roundId: string, userId: string) => {
+    const holeDeleted = await deleteRoundHoleScores(roundId);
+
+    await createAuditLog({
+        eventId,
+        entityType: 'round_scores',
+        entityId: roundId,
         action: 'admin_delete_all',
         previousValue: { holeScores: holeDeleted },
         newValue: null,
