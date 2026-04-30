@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useMyEvents } from '@/hooks/useEvents';
-import { useApuestas, PotADay, PotADayStanding, PotBRyder, PotCRanking, PotCTotalViaje } from '@/hooks/useApuestas';
+import { useApuestas, OverallSummary, OverallStanding, PotADay, PotADayStanding, PotBRyder, PotCRanking, PotCTotalViaje } from '@/hooks/useApuestas';
 import { Avatar } from '@/components/Avatar';
 import { ApuestasTabs } from '@/components/betting/ApuestasTabs';
 import { formatCurrency } from '@/lib/currency';
@@ -79,6 +79,7 @@ export default function ApuestasPage() {
                     userId={user?.id ?? null}
                     isProvisional={data.pots.a.some(d => d.state !== 'completed')}
                 />
+                <SectionTotal summary={data.summary} userId={user?.id ?? null} />
             </main>
         </div>
     );
@@ -343,6 +344,91 @@ function PotCRow({ r, isMe }: { r: PotCRanking; isMe: boolean }) {
                         {formatCurrency(r.projectedPayout)}
                     </span>
                 )}
+            </div>
+        </div>
+    );
+}
+
+// ── SECTION TOTAL — overall winnings per player across A+B+C ─────────────────
+
+function SectionTotal({ summary, userId }: { summary: OverallSummary; userId: string | null }) {
+    const standings = summary.standings;
+    if (standings.length === 0) return null;
+    const someoneWon = standings.some(s => s.total > 0);
+    return (
+        <section className={`${CARD_DARK} overflow-hidden`}>
+            <div className="border-b border-[#31316b]/60 px-4 py-3">
+                <div className="flex items-baseline justify-between gap-2">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                            <span className="font-bangers text-[10px] uppercase tracking-widest text-[#fbbc05]/85">
+                                Resumen
+                            </span>
+                            {summary.isProvisional && (
+                                <span className="rounded-full border border-[#fbbc05]/40 bg-[#fbbc05]/10 px-2 py-0.5 font-bangers text-[9px] uppercase tracking-wider text-[#fbbc05]/85">
+                                    Provisional
+                                </span>
+                            )}
+                        </div>
+                        <div className="font-bangers text-lg uppercase tracking-wider text-white">
+                            Ganancias Totales
+                        </div>
+                    </div>
+                    <div className="text-right shrink-0 font-fredoka text-[10px] text-white/55">
+                        Pot A + B + C
+                    </div>
+                </div>
+                <div className="mt-1.5 font-fredoka text-[10px] text-white/55">
+                    Suma de Mejor del Día, Ryder Cup y Total del Viaje
+                </div>
+            </div>
+
+            {!someoneWon ? (
+                <div className="px-4 py-6 text-center font-fredoka italic text-white/40">
+                    Aún sin ganancias.
+                </div>
+            ) : (
+                <div className="divide-y divide-[#31316b]/30">
+                    {standings.map(s => (
+                        <TotalRow key={s.playerId} s={s} isMe={s.playerId === userId} />
+                    ))}
+                </div>
+            )}
+
+            {summary.isProvisional && someoneWon && (
+                <div className="border-t border-[#31316b]/40 bg-[#0a1322]/60 px-4 py-2 text-center font-fredoka text-[10px] italic text-white/50">
+                    Resultados provisionales · cambia con cada ronda
+                </div>
+            )}
+        </section>
+    );
+}
+
+function TotalRow({ s, isMe }: { s: OverallStanding; isMe: boolean }) {
+    const teamForAvatar: 'red' | 'blue' = s.team === 'blue' ? 'blue' : 'red';
+    const teamColor = s.team === 'red' ? 'text-team-red' : s.team === 'blue' ? 'text-team-blue' : 'text-white';
+    const rankColor = s.rank === 1 ? 'text-[#fbbc05]'
+        : s.rank === 2 ? 'text-[#dde]'
+        : s.rank === 3 ? 'text-[#caa278]'
+        : 'text-white/45';
+    const hasWon = s.total > 0;
+    return (
+        <div className={`flex items-center gap-2 px-3 py-2 ${
+            isMe ? 'bg-[#fbbc05]/10' : hasWon && s.rank <= 3 ? 'bg-[#fbbc05]/5' : ''
+        }`}>
+            <span className={`w-6 text-center font-bangers text-sm ${rankColor}`}>{s.rank}</span>
+            <Avatar name={s.playerName} team={teamForAvatar} size={28} className="shrink-0" />
+            <div className="min-w-0 flex-1">
+                <div className={`truncate font-bangers text-sm uppercase tracking-wider ${teamColor}`}>
+                    {s.playerName}
+                </div>
+                <div className="font-fredoka text-[9px] uppercase tracking-wider text-white/40">
+                    A {formatCurrency(s.potA)} · B {formatCurrency(s.potB)} · C {formatCurrency(s.potC)}
+                </div>
+            </div>
+            <div className="ml-2 flex flex-col items-end leading-tight">
+                <span className="font-bowlby text-base text-[#fbbc05]">{formatCurrency(s.total)}</span>
+                <span className="font-fredoka text-[9px] uppercase tracking-wider text-white/45">total</span>
             </div>
         </div>
     );
