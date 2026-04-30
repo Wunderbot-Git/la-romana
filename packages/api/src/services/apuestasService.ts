@@ -119,6 +119,27 @@ export interface PotCTotalViaje {
     rankings: PotCRanking[];
 }
 
+export interface OverallStanding {
+    rank: number;
+    playerId: string;
+    playerName: string;
+    team: 'red' | 'blue' | null;
+    /** Sum of Pot A daily winnings across completed rounds. */
+    potA: number;
+    /** Pot B share — only filled once Ryder Cup winner (or tie) is decided. */
+    potB: number;
+    /** Pot C projected/realized payout (provisional until all rounds complete). */
+    potC: number;
+    /** potA + potB + potC */
+    total: number;
+}
+
+export interface OverallSummary {
+    /** True until all 3 rounds are completed AND Pot B is decided. */
+    isProvisional: boolean;
+    standings: OverallStanding[];
+}
+
 export interface ApuestasOverview {
     perPlayer: { dailyTotal: number; tripTotal: number };
     grandPool: number;
@@ -127,6 +148,7 @@ export interface ApuestasOverview {
         b: PotBRyder;
         c: PotCTotalViaje;
     };
+    summary: OverallSummary;
 }
 
 export const getApuestasOverview = async (eventId: string): Promise<ApuestasOverview> => {
@@ -345,6 +367,59 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
         })),
     };
 
+    // ── OVERALL SUMMARY — total per player across all 3 pots ────────────────
+    // Pot A: realized daily winnings (only completed rounds contribute).
+    // Pot B: share once a winner (or tie) is decided; otherwise 0.
+    // Pot C: projected/realized podium payout (provisional until all rounds done).
+    const potBShareByPlayer = new Map<string, number>();
+    if (winner === 'red' && redCount > 0) {
+        for (const s of humanStandings) {
+            if (s.team === 'red') potBShareByPlayer.set(s.playerId, ryderPool / redCount);
+        }
+    } else if (winner === 'blue' && blueCount > 0) {
+        for (const s of humanStandings) {
+            if (s.team === 'blue') potBShareByPlayer.set(s.playerId, ryderPool / blueCount);
+        }
+    } else if (winner === 'tie' && numHumans > 0) {
+        for (const s of humanStandings) {
+            potBShareByPlayer.set(s.playerId, ryderPool / numHumans);
+        }
+    }
+    const potCByPlayer = new Map<string, number>(
+        potC.rankings.map(r => [r.playerId, r.projectedPayout]),
+    );
+
+    const summaryRows: Omit<OverallStanding, 'rank'>[] = humanStandings.map(s => {
+        const a = dailyWinningsByPlayer.get(s.playerId) ?? 0;
+        const b = potBShareByPlayer.get(s.playerId) ?? 0;
+        const c = potCByPlayer.get(s.playerId) ?? 0;
+        return {
+            playerId: s.playerId,
+            playerName: s.playerName,
+            team: s.team,
+            potA: a,
+            potB: b,
+            potC: c,
+            total: a + b + c,
+        };
+    });
+    summaryRows.sort((x, y) => y.total - x.total || x.playerName.localeCompare(y.playerName));
+
+    // Dense ranking: tied totals share a rank, next rank skips by group size.
+    const standings: OverallStanding[] = [];
+    let rank = 1;
+    for (let i = 0; i < summaryRows.length; i++) {
+        if (i > 0 && summaryRows[i].total !== summaryRows[i - 1].total) {
+            rank = i + 1;
+        }
+        standings.push({ rank, ...summaryRows[i] });
+    }
+
+    const summary: OverallSummary = {
+        isProvisional: !allRoundsCompleted || winner === null,
+        standings,
+    };
+
     const dailyTotal =
         DAILY_CONTRIB_PER_PLAYER.potA + DAILY_CONTRIB_PER_PLAYER.potB + DAILY_CONTRIB_PER_PLAYER.potC;
 
@@ -352,5 +427,6 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
         perPlayer: { dailyTotal, tripTotal: dailyTotal * NUM_DAYS },
         grandPool: dailyTotal * NUM_DAYS * numHumans,
         pots: { a: potA, b: potB, c: potC },
+        summary,
     };
 };

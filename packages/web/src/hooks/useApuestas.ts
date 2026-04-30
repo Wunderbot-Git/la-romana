@@ -55,6 +55,22 @@ export interface PotCTotalViaje {
     rankings: PotCRanking[];
 }
 
+export interface OverallStanding {
+    rank: number;
+    playerId: string;
+    playerName: string;
+    team: 'red' | 'blue' | null;
+    potA: number;
+    potB: number;
+    potC: number;
+    total: number;
+}
+
+export interface OverallSummary {
+    isProvisional: boolean;
+    standings: OverallStanding[];
+}
+
 export interface ApuestasOverview {
     perPlayer: { dailyTotal: number; tripTotal: number };
     grandPool: number;
@@ -63,6 +79,7 @@ export interface ApuestasOverview {
         b: PotBRyder;
         c: PotCTotalViaje;
     };
+    summary: OverallSummary;
 }
 
 export function useApuestas(eventId: string) {
