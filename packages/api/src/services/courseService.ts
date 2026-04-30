@@ -29,12 +29,15 @@ export const createCourseManually = async (eventId: string, input: CreateCourseR
             throw new Error(`Tee '${tee.name}' must have exactly 9 or 18 holes`);
         }
 
+        // Stroke-index domain: 1..18. Real-world 9-hole courses often share an
+        // 18-hole index space with a hypothetical "back 9" (front = odd SIs
+        // 1,3,5,…,17), so we accept any unique values in 1..18 even on a 9-tee.
         const strokeIndexes = new Set<number>();
         for (const hole of tee.holes) {
             if (hole.holeNumber < 1 || hole.holeNumber > holeCount) {
                 throw new Error(`Invalid hole number ${hole.holeNumber} in tee '${tee.name}'`);
             }
-            if (hole.strokeIndex < 1 || hole.strokeIndex > holeCount) {
+            if (hole.strokeIndex < 1 || hole.strokeIndex > 18) {
                 throw new Error(`Invalid stroke index ${hole.strokeIndex} in tee '${tee.name}'`);
             }
             if (strokeIndexes.has(hole.strokeIndex)) {
