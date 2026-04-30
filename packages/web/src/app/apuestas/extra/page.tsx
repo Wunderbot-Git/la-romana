@@ -131,7 +131,7 @@ export default function ApuestasPage() {
                 )}
 
                 {tab === 'standings' && (
-                    <StandingsTab settlement={settlement} userId={user.id} />
+                    <StandingsTab settlement={settlement} userId={user.id} leaderboard={leaderboard} />
                 )}
 
                 {tab === 'settlement' && (
@@ -248,36 +248,77 @@ function MatchesTab({
 
 // ─── Standings tab ────────────────────────────────────────────────────────
 
-function StandingsTab({ settlement, userId }: { settlement: any; userId: string }) {
+function StandingsTab({ settlement, userId, leaderboard }: { settlement: any; userId: string; leaderboard: any }) {
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+
+    // Index matches by (roundId, flightId, segmentType) → match metadata for labelling.
+    // Hooks first, before any early returns, so the order stays consistent on re-renders.
+    const matchIndex = useMemo(() => {
+        const m = new Map<string, { roundNumber: number; flightNumber: number; matchType: string; redLabel: string; blueLabel: string; finalStatus: string; isComplete: boolean; winner: 'red' | 'blue' | null }>();
+        for (const r of leaderboard?.rounds ?? []) {
+            for (const f of r.flightSummaries ?? []) {
+                for (const mm of f.matches ?? []) {
+                    const key = `${r.roundId}::${f.flightId}::${mm.matchType}`;
+                    const redLabel = mm.matchType === 'fourball'
+                        ? mm.redPlayers.map((p: any) => p.name.split(' ')[0]).join(' / ')
+                        : mm.redPlayers[0]?.name?.split(' ')[0] ?? '—';
+                    const blueLabel = mm.matchType === 'fourball'
+                        ? mm.bluePlayers.map((p: any) => p.name.split(' ')[0]).join(' / ')
+                        : mm.bluePlayers[0]?.name?.split(' ')[0] ?? '—';
+                    m.set(key, {
+                        roundNumber: r.roundNumber,
+                        flightNumber: f.flightNumber,
+                        matchType: mm.matchType,
+                        redLabel,
+                        blueLabel,
+                        finalStatus: mm.finalStatus,
+                        isComplete: mm.isComplete,
+                        winner: mm.winner,
+                    });
+                }
+            }
+        }
+        return m;
+    }, [leaderboard]);
+
     if (!settlement) return <div className="text-center font-fredoka text-white/55">Cargando…</div>;
     if (settlement.balances.length === 0) {
         return <div className="text-center font-fredoka text-white/55 py-8">Aún no hay apuestas registradas.</div>;
     }
+
     return (
         <div className="overflow-hidden rounded-[14px] border-[2px] border-[#31316b] bg-gradient-to-b from-[#1c2f3e] to-[#0f172b] shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
             {settlement.balances.map((p: any, idx: number) => {
                 const isMe = p.id === userId;
+                const isExpanded = expandedId === p.id;
+                const playerBets: any[] = settlement.playerBets?.[p.id] ?? [];
                 const balanceClass =
                     p.balance > 0.01 ? 'text-emerald-400'
                     : p.balance < -0.01 ? 'text-team-red'
                     : 'text-white/55';
                 return (
-                    <div
-                        key={p.id}
-                        className={`flex items-center justify-between border-t border-[#31316b]/40 px-4 py-3 first:border-0 ${
-                            isMe ? 'bg-[#fbbc05]/10' : ''
-                        }`}
-                    >
-                        <div className="flex items-center gap-3">
-                            <span className="w-6 text-center font-bangers text-sm text-[#fbbc05]">{idx + 1}</span>
-                            <span className="font-bangers text-sm uppercase tracking-wider text-white">
-                                {p.name} {isMe && <span className="text-[#fbbc05]">(Tú)</span>}
+                    <div key={p.id} className={`border-t border-[#31316b]/40 first:border-0 ${isMe ? 'bg-[#fbbc05]/10' : ''}`}>
+                        <button
+                            type="button"
+                            onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                            className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-white/3"
+                        >
+                            <div className="flex items-center gap-3">
+                                <span className="w-6 text-center font-bangers text-sm text-[#fbbc05]">{idx + 1}</span>
+                                <span className="font-bangers text-sm uppercase tracking-wider text-white">
+                                    {p.name} {isMe && <span className="text-[#fbbc05]">(Tú)</span>}
+                                </span>
+                                <span className={`text-white/45 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▾</span>
+                            </div>
+                            <span className={`font-bowlby text-base ${balanceClass}`}>
+                                {p.balance > 0 ? '+' : ''}
+                                {formatCurrency(p.balance)}
                             </span>
-                        </div>
-                        <span className={`font-bowlby text-base ${balanceClass}`}>
-                            {p.balance > 0 ? '+' : ''}
-                            {formatCurrency(p.balance)}
-                        </span>
+                        </button>
+
+                        {isExpanded && (
+                            <PlayerBetBreakdown bets={playerBets} matchIndex={matchIndex} />
+                        )}
                     </div>
                 );
             })}
@@ -286,6 +327,88 @@ function StandingsTab({ settlement, userId }: { settlement: any; userId: string 
                     * Resultado parcial. Basado en partidas finalizadas.
                 </div>
             )}
+        </div>
+    );
+}
+
+function PlayerBetBreakdown({ bets, matchIndex }: { bets: any[]; matchIndex: Map<string, any> }) {
+    if (!bets.length) {
+        return (
+            <div className="border-t border-[#31316b]/40 bg-[#0a1322]/40 px-4 py-3 font-fredoka text-xs italic text-white/45">
+                Aún no apostó en ningún partido.
+            </div>
+        );
+    }
+    let sumWon = 0, sumLost = 0, sumOpen = 0;
+    return (
+        <div className="border-t border-[#31316b]/40 bg-[#0a1322]/60">
+            <div className="space-y-1.5 px-3 py-2.5">
+                {bets.map((b: any) => {
+                    const key = `${b.roundId}::${b.flightId}::${b.segmentType}`;
+                    const meta = matchIndex.get(key);
+                    const segmentLabel = b.segmentType === 'singles1' ? 'Singles 1'
+                        : b.segmentType === 'singles2' ? 'Singles 2'
+                        : 'Mejor Bola';
+                    const pickedLabel = b.pickedOutcome === 'A' ? (meta?.redLabel ?? 'A')
+                        : b.pickedOutcome === 'B' ? (meta?.blueLabel ?? 'B')
+                        : 'Empate';
+                    const settled = b.status === 'closed';
+                    const won = settled && (
+                        (b.pickedOutcome === 'A' && meta?.winner === 'red')
+                        || (b.pickedOutcome === 'B' && meta?.winner === 'blue')
+                        || (b.pickedOutcome === 'AS' && meta?.winner === null)
+                    );
+                    const net = settled ? (b.realizedPayout ?? 0) - b.amount : 0;
+                    if (settled) {
+                        if (won) sumWon += net;
+                        else sumLost += net; // negative
+                    } else {
+                        sumOpen += b.amount;
+                    }
+                    const outcomeClass = !settled ? 'text-[#fbbc05]/85'
+                        : won ? 'text-emerald-300'
+                        : 'text-rose-300/85';
+                    const netLabel = !settled ? 'En curso'
+                        : net > 0 ? `+${formatCurrency(net)}`
+                        : net < 0 ? `−${formatCurrency(Math.abs(net))}`
+                        : `±${formatCurrency(0)}`;
+                    return (
+                        <div key={b.id} className="flex items-start justify-between gap-2 rounded-[10px] border border-[#31316b]/50 bg-[#0f172b]/70 px-2.5 py-1.5">
+                            <div className="min-w-0 flex-1">
+                                <div className="font-bangers text-[9px] uppercase tracking-wider text-[#fbbc05]/65">
+                                    R{meta?.roundNumber ?? '?'} · Grupo {meta?.flightNumber ?? '?'} · {segmentLabel}
+                                </div>
+                                <div className="mt-0.5 truncate font-bangers text-[12px] tracking-wider text-white/85">
+                                    <span className="text-team-red">{meta?.redLabel ?? '—'}</span>
+                                    <span className="mx-1.5 text-white/40">vs</span>
+                                    <span className="text-team-blue">{meta?.blueLabel ?? '—'}</span>
+                                    {settled && meta?.finalStatus && (
+                                        <span className="ml-1.5 font-fredoka text-[10px] text-white/45">({meta.finalStatus})</span>
+                                    )}
+                                </div>
+                                <div className="mt-0.5 font-fredoka text-[10px] text-white/55">
+                                    Pick: <span className="font-bangers tracking-wider uppercase text-white/85">{pickedLabel}</span>
+                                    <span className="ml-1.5 text-white/35">· apuesta {formatCurrency(b.amount)}</span>
+                                </div>
+                            </div>
+                            <div className={`font-bowlby text-[12px] leading-none ${outcomeClass} whitespace-nowrap`}>
+                                {netLabel}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="grid grid-cols-3 gap-2 border-t border-[#31316b]/40 bg-[#070d1a] px-3 py-2 font-fredoka text-[10px] uppercase tracking-wider">
+                <div className="text-white/45">
+                    Ganadas <span className="ml-1 font-bowlby text-emerald-300">+{formatCurrency(sumWon)}</span>
+                </div>
+                <div className="text-white/45">
+                    Perdidas <span className="ml-1 font-bowlby text-rose-300/85">{sumLost < 0 ? `−${formatCurrency(Math.abs(sumLost))}` : formatCurrency(0)}</span>
+                </div>
+                <div className="text-white/45">
+                    En curso <span className="ml-1 font-bowlby text-[#fbbc05]/85">{formatCurrency(sumOpen)}</span>
+                </div>
+            </div>
         </div>
     );
 }

@@ -57,6 +57,8 @@ export interface SettlementData {
     isPartial: boolean;
     balances: SettlementBalance[];
     transfers: SettlementTransfer[];
+    /** Per-player enriched bets for the Predicciones standings drilldown. */
+    playerBets?: Record<string, Bet[]>;
 }
 
 export type GeneralBetType = 'tournament_winner' | 'exact_score' | 'mvp' | 'worst_player';
