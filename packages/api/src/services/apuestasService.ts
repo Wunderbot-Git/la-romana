@@ -17,6 +17,50 @@ const DAILY_PAYOUTS_POT_A = { first: 100, second: 50 };
 const TRIP_PAYOUTS_POT_C = { first: 550, second: 250, third: 100 };
 const DAILY_CONTRIB_PER_PLAYER = { potA: 10, potB: 10, potC: 20 };
 const NUM_DAYS = 3;
+
+/**
+ * Walk a pre-sorted standings list and assign ranks + payouts with proper
+ * tie-handling: tied scores get the same (lowest) rank and SHARE the pooled
+ * value of the positions they occupy. Pari-mutuel-style — total $ paid out
+ * stays equal to the sum of the relevant prize positions.
+ *
+ *   2-way tie at 1st with payouts [100, 50, 0]   → both rank 1, $75 each
+ *   3-way tie at 1st with [100, 50, 0]           → all rank 1, $50 each
+ *   1st alone, 2-way tie at 2nd with [100,50,0]  → 1st gets 100, 2nd-3rd $25 each
+ *   2-way tie outside money positions            → both ranked, $0 payout
+ *
+ * `payouts[i]` is the prize for position i+1 (so payouts[0] = first place).
+ * Indices beyond `payouts.length` get $0.
+ */
+function assignTiedPayouts<T>(
+    sorted: T[],
+    rankable: (item: T) => boolean,
+    scoreEqual: (a: T, b: T) => boolean,
+    payouts: number[],
+): Array<{ rank: number | null; payout: number }> {
+    const out: Array<{ rank: number | null; payout: number }> = sorted.map(() => ({ rank: null, payout: 0 }));
+    let nextRank = 1;
+    let i = 0;
+    while (i < sorted.length) {
+        if (!rankable(sorted[i])) { i++; continue; }
+        let j = i;
+        while (j + 1 < sorted.length && rankable(sorted[j + 1]) && scoreEqual(sorted[i], sorted[j + 1])) {
+            j++;
+        }
+        const groupSize = j - i + 1;
+        let pooled = 0;
+        for (let r = nextRank; r < nextRank + groupSize; r++) {
+            pooled += payouts[r - 1] ?? 0;
+        }
+        const share = pooled / groupSize;
+        for (let k = i; k <= j; k++) {
+            out[k] = { rank: nextRank, payout: share };
+        }
+        nextRank += groupSize;
+        i = j + 1;
+    }
+    return out;
+}
 const PHANTOM_NAME = 'Fantasma';
 
 export interface PotADayStanding {
@@ -182,26 +226,24 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
             });
 
         // Only fully-played rounds (18 holes) are rankable for daily payout.
-        let nextRank = 1;
-        const ranked: PotADayStanding[] = standings.map(s => {
-            const result: PotADayStanding = {
-                playerId: s.playerId,
-                playerName: s.playerName,
-                team: s.team,
-                netScore: s.netScore,
-                holesPlayed: s.holesPlayed,
-                stablefordPoints: s.stablefordPoints,
-                rank: null,
-                payout: 0,
-            };
-            if (s.completed) {
-                result.rank = nextRank;
-                if (nextRank === 1) result.payout = DAILY_PAYOUTS_POT_A.first;
-                else if (nextRank === 2) result.payout = DAILY_PAYOUTS_POT_A.second;
-                nextRank += 1;
-            }
-            return result;
-        });
+        // Ties at the money positions split the pooled payouts evenly
+        // (e.g. two players tied at 1st each get ($100+$50)/2 = $75).
+        const tieResults = assignTiedPayouts(
+            standings,
+            s => s.completed,
+            (a, b) => a.netScore !== null && a.netScore === b.netScore,
+            [DAILY_PAYOUTS_POT_A.first, DAILY_PAYOUTS_POT_A.second],
+        );
+        const ranked: PotADayStanding[] = standings.map((s, idx) => ({
+            playerId: s.playerId,
+            playerName: s.playerName,
+            team: s.team,
+            netScore: s.netScore,
+            holesPlayed: s.holesPlayed,
+            stablefordPoints: s.stablefordPoints,
+            rank: tieResults[idx].rank,
+            payout: tieResults[idx].payout,
+        }));
 
         const playedCount = ranked.filter(r => r.rank !== null).length;
         const state: 'upcoming' | 'in_progress' | 'completed' =
@@ -280,22 +322,26 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
         }))
         .sort((a, b) => b.score - a.score || a.playerName.localeCompare(b.playerName));
 
+    // Trip-total ranking: ties at money positions split the pooled payout
+    // (e.g. 2-way tie at 1st gets ($550+$250)/2 = $400 each).
+    const cTieResults = assignTiedPayouts(
+        cRows,
+        () => true, // every cumulative score is rankable; no completion gate at trip level
+        (a, b) => a.score === b.score,
+        [TRIP_PAYOUTS_POT_C.first, TRIP_PAYOUTS_POT_C.second, TRIP_PAYOUTS_POT_C.third],
+    );
     const potC: PotCTotalViaje = {
         poolSize: tripPool,
         payouts: TRIP_PAYOUTS_POT_C,
         rankings: cRows.map((r, idx) => ({
-            rank: idx + 1,
+            rank: cTieResults[idx].rank ?? idx + 1,
             playerId: r.playerId,
             playerName: r.playerName,
             team: r.team,
             stablefordCumulative: r.stablefordCumulative,
             dailyWinningsTotal: r.dailyWinningsTotal,
             score: r.score,
-            projectedPayout:
-                idx === 0 ? TRIP_PAYOUTS_POT_C.first
-                : idx === 1 ? TRIP_PAYOUTS_POT_C.second
-                : idx === 2 ? TRIP_PAYOUTS_POT_C.third
-                : 0,
+            projectedPayout: cTieResults[idx].payout,
         })),
     };
 
