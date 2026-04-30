@@ -73,9 +73,16 @@ export const betRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
         async (request, reply) => {
             try {
                 const settlement = await getTournamentSettlement(request.params.eventId);
-                // Strip raw personalStats — those are internal aggregates the UI doesn't need on the public endpoint.
-                const { personalStats: _drop, ...publicShape } = settlement;
-                return reply.send(publicShape);
+                // Drop the *aggregate* counters in personalStats (only used internally
+                // by getPersonalStats), but expose the per-player bet list so the
+                // Predicciones standings UI can show a per-player drilldown of how
+                // each player's net came to be. Bets are public information in this
+                // tournament's pari-mutuel model anyway.
+                const { personalStats, ...rest } = settlement;
+                return reply.send({
+                    ...rest,
+                    playerBets: personalStats?.playerBets ?? {},
+                });
             } catch (err: any) {
                 return reply.status(500).send({ error: err.message });
             }
