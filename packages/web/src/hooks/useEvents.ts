@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 
-interface Event {
+export interface Event {
     id: string;
     name: string;
     status: 'draft' | 'live' | 'completed' | 'closed';
@@ -62,6 +62,46 @@ export function useEvent(eventId: string) {
     }, [eventId]);
 
     return { event, isLoading, error };
+}
+
+/**
+ * `useActiveEvent` — single source of truth for the user's currently selected event.
+ *
+ * Resolution order:
+ *   1. localStorage (`la-romana.activeEventId`) if it points to an event the user still has access to
+ *   2. First event with status === 'live'
+ *   3. First event in the list
+ *
+ * The setter persists the chosen ID to localStorage so the choice survives reloads
+ * across all pages (apuestas, ranking, score, leaderboard, …).
+ */
+const ACTIVE_EVENT_KEY = 'la-romana.activeEventId';
+
+export function useActiveEvent() {
+    const { events, isLoading, error, refetch } = useMyEvents();
+    const [storedId, setStoredId] = useState<string | null>(null);
+
+    // Hydrate from localStorage once on the client.
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try { setStoredId(window.localStorage.getItem(ACTIVE_EVENT_KEY)); } catch { /* ignore */ }
+    }, []);
+
+    const activeEvent = useMemo<Event | null>(() => {
+        if (!events || events.length === 0) return null;
+        const stored = storedId ? events.find(e => e.id === storedId) : null;
+        if (stored) return stored;
+        return events.find(e => e.status === 'live') || events[0] || null;
+    }, [events, storedId]);
+
+    const setActiveEvent = useCallback((eventId: string) => {
+        setStoredId(eventId);
+        if (typeof window !== 'undefined') {
+            try { window.localStorage.setItem(ACTIVE_EVENT_KEY, eventId); } catch { /* ignore */ }
+        }
+    }, []);
+
+    return { activeEvent, events, setActiveEvent, isLoading, error, refetch };
 }
 
 export function useJoinEvent() {

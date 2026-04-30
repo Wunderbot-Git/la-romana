@@ -9,6 +9,7 @@ const mapRow = (row: any): Round => ({
     scheduledAt: row.scheduled_at ? row.scheduled_at.toISOString() : null,
     hcpSinglesPct: Number(row.hcp_singles_pct),
     hcpFourballPct: Number(row.hcp_fourball_pct),
+    holesPerRound: Number(row.holes_per_round) || 18,
     state: row.state as RoundState,
     createdAt: row.created_at.toISOString(),
 });
@@ -20,11 +21,12 @@ export const createRound = async (params: {
     scheduledAt?: string | null;
     hcpSinglesPct?: number;
     hcpFourballPct?: number;
+    holesPerRound?: number;
 }): Promise<Round> => {
     const pool = getPool();
     const res = await pool.query(
-        `INSERT INTO rounds (event_id, round_number, course_id, scheduled_at, hcp_singles_pct, hcp_fourball_pct)
-         VALUES ($1, $2, $3, $4, COALESCE($5, 0.80), COALESCE($6, 0.80))
+        `INSERT INTO rounds (event_id, round_number, course_id, scheduled_at, hcp_singles_pct, hcp_fourball_pct, holes_per_round)
+         VALUES ($1, $2, $3, $4, COALESCE($5, 0.80), COALESCE($6, 0.80), COALESCE($7, 18))
          RETURNING *`,
         [
             params.eventId,
@@ -33,6 +35,7 @@ export const createRound = async (params: {
             params.scheduledAt ?? null,
             params.hcpSinglesPct ?? null,
             params.hcpFourballPct ?? null,
+            params.holesPerRound ?? null,
         ]
     );
     return mapRow(res.rows[0]);
@@ -60,6 +63,7 @@ export const updateRound = async (
         scheduledAt?: string | null;
         hcpSinglesPct?: number;
         hcpFourballPct?: number;
+        holesPerRound?: number;
         state?: RoundState;
     }
 ): Promise<Round | null> => {
@@ -82,6 +86,10 @@ export const updateRound = async (
     if (updates.hcpFourballPct !== undefined) {
         sets.push(`hcp_fourball_pct = $${i++}`);
         values.push(updates.hcpFourballPct);
+    }
+    if (updates.holesPerRound !== undefined) {
+        sets.push(`holes_per_round = $${i++}`);
+        values.push(updates.holesPerRound);
     }
     if (updates.state !== undefined) {
         sets.push(`state = $${i++}`);

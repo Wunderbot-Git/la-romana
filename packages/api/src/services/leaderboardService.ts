@@ -73,6 +73,7 @@ export interface RoundBreakdown {
     roundNumber: number;
     courseName: string;
     state: 'open' | 'completed' | 'reopened';
+    holesPerRound: number;
     teamPoints: { red: number; blue: number };
     teamPointsProjected: { red: number; blue: number };
     flightSummaries: FlightRoundSummary[];
@@ -179,7 +180,8 @@ const loadCourseTeeData = async (courseId: string): Promise<CourseTeeData> => {
             `SELECT hole_number, par, stroke_index FROM holes WHERE tee_id = $1 ORDER BY hole_number ASC`,
             [tee.id]
         );
-        if (holesRes.rows.length === 18) {
+        // Accept 9- or 18-hole tees (night-golf side events use 9).
+        if (holesRes.rows.length === 18 || holesRes.rows.length === 9) {
             siByTee[tee.id] = holesRes.rows.map((h: any) => h.stroke_index);
             const teePars = holesRes.rows.map((h: any) => Number(h.par) || 4);
             const parTotal = teePars.reduce((s: number, n: number) => s + n, 0);
@@ -206,13 +208,14 @@ interface RoundContext {
     state: 'open' | 'completed' | 'reopened';
     hcpSinglesPct: number;
     hcpFourballPct: number;
+    holesPerRound: number;
 }
 
 const loadRounds = async (eventId: string): Promise<RoundContext[]> => {
     const pool = getPool();
     const res = await pool.query(
         `SELECT r.id, r.round_number, r.course_id, c.name AS course_name, r.state,
-                r.hcp_singles_pct, r.hcp_fourball_pct
+                r.hcp_singles_pct, r.hcp_fourball_pct, r.holes_per_round
          FROM rounds r
          JOIN courses c ON c.id = r.course_id
          WHERE r.event_id = $1
@@ -227,6 +230,7 @@ const loadRounds = async (eventId: string): Promise<RoundContext[]> => {
         state: r.state,
         hcpSinglesPct: Number(r.hcp_singles_pct),
         hcpFourballPct: Number(r.hcp_fourball_pct),
+        holesPerRound: Number(r.holes_per_round) || 18,
     }));
 };
 
@@ -761,6 +765,7 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
             roundNumber: round.roundNumber,
             courseName: round.courseName,
             state: round.state,
+            holesPerRound: round.holesPerRound,
             teamPoints: { red: roundRedPoints, blue: roundBluePoints },
             teamPointsProjected: { red: roundRedProjected, blue: roundBlueProjected },
             flightSummaries,

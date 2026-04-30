@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { useMyEvents } from '@/hooks/useEvents';
+import { useActiveEvent } from '@/hooks/useEvents';
 import { useRounds, useRoundFlights } from '@/hooks/useRounds';
 import { useFlightScores, useSubmitScores } from '@/hooks/useScores';
 import { ScoreGrid } from '@/components/ScoreGrid';
@@ -31,11 +31,7 @@ function ScorePageInner() {
     const flightIdParam = params.get('flightId');
 
     const { user } = useAuth();
-    const { events, isLoading: eventsLoading } = useMyEvents();
-    const activeEvent = useMemo(() => {
-        if (!events || events.length === 0) return null;
-        return events.find(e => e.status === 'live') || events[0];
-    }, [events]);
+    const { activeEvent, isLoading: eventsLoading } = useActiveEvent();
     const eventId = activeEvent?.id || '';
     const isOrganizer = activeEvent?.role === 'organizer';
 
@@ -188,29 +184,31 @@ function ScorePageInner() {
                 </div>
             )}
 
-            {/* Half toggle */}
-            <div className="flex gap-2 px-4 pt-3 pb-2">
-                <button
-                    onClick={() => setHalf('front')}
-                    className={`flex-1 rounded-[12px] border-[2px] py-2 font-bangers text-xs uppercase tracking-wider transition-colors ${
-                        half === 'front'
-                            ? 'border-[#1e293b] bg-gradient-to-b from-[#fce8b2] via-[#fbbc05] to-[#e37400] text-[#1e293b] shadow-[0_3px_0_#1e293b]'
-                            : 'border-[#31316b] bg-[#0f172b]/70 text-white/65 hover:text-white'
-                    }`}
-                >
-                    Hoyos 1–9
-                </button>
-                <button
-                    onClick={() => setHalf('back')}
-                    className={`flex-1 rounded-[12px] border-[2px] py-2 font-bangers text-xs uppercase tracking-wider transition-colors ${
-                        half === 'back'
-                            ? 'border-[#1e293b] bg-gradient-to-b from-[#fce8b2] via-[#fbbc05] to-[#e37400] text-[#1e293b] shadow-[0_3px_0_#1e293b]'
-                            : 'border-[#31316b] bg-[#0f172b]/70 text-white/65 hover:text-white'
-                    }`}
-                >
-                    Hoyos 10–18
-                </button>
-            </div>
+            {/* Half toggle — hidden for 9-hole rounds (e.g. night-golf side events) */}
+            {flight.parValues.length > 9 && (
+                <div className="flex gap-2 px-4 pt-3 pb-2">
+                    <button
+                        onClick={() => setHalf('front')}
+                        className={`flex-1 rounded-[12px] border-[2px] py-2 font-bangers text-xs uppercase tracking-wider transition-colors ${
+                            half === 'front'
+                                ? 'border-[#1e293b] bg-gradient-to-b from-[#fce8b2] via-[#fbbc05] to-[#e37400] text-[#1e293b] shadow-[0_3px_0_#1e293b]'
+                                : 'border-[#31316b] bg-[#0f172b]/70 text-white/65 hover:text-white'
+                        }`}
+                    >
+                        Hoyos 1–9
+                    </button>
+                    <button
+                        onClick={() => setHalf('back')}
+                        className={`flex-1 rounded-[12px] border-[2px] py-2 font-bangers text-xs uppercase tracking-wider transition-colors ${
+                            half === 'back'
+                                ? 'border-[#1e293b] bg-gradient-to-b from-[#fce8b2] via-[#fbbc05] to-[#e37400] text-[#1e293b] shadow-[0_3px_0_#1e293b]'
+                                : 'border-[#31316b] bg-[#0f172b]/70 text-white/65 hover:text-white'
+                        }`}
+                    >
+                        Hoyos 10–18
+                    </button>
+                </div>
+            )}
 
             <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <ScoreGrid

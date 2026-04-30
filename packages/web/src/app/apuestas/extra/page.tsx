@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth';
-import { useMyEvents } from '@/hooks/useEvents';
+import { useActiveEvent } from '@/hooks/useEvents';
 import { useLeaderboard, MatchDetail } from '@/hooks/useLeaderboard';
 import {
     usePersonalStats,
@@ -15,6 +15,7 @@ import { ApuestasTabs } from '@/components/betting/ApuestasTabs';
 import { DashboardBanner } from '@/components/betting/DashboardBanner';
 import { MatchBetCard } from '@/components/betting/MatchBetCard';
 import { GeneralBetsSection } from '@/components/betting/GeneralBetsSection';
+import { EventSwitcher } from '@/components/EventSwitcher';
 import { formatCurrency } from '@/lib/currency';
 
 const BetDetailSheet = dynamic(
@@ -32,11 +33,7 @@ interface OpenSheet {
 
 export default function ApuestasPage() {
     const { user } = useAuth();
-    const { events, isLoading: eventsLoading } = useMyEvents();
-    const activeEvent = useMemo(
-        () => events?.find(e => e.status === 'live') || events?.[0] || null,
-        [events],
-    );
+    const { activeEvent, isLoading: eventsLoading } = useActiveEvent();
     const eventId = activeEvent?.id || '';
 
     const { data: stats, isLoading: statsLoading, refetch: refetchStats } = usePersonalStats(eventId);
@@ -63,8 +60,11 @@ export default function ApuestasPage() {
         <div className="relative z-[1] flex min-h-full flex-col pb-24">
             {/* Header */}
             <header className="px-4 pt-6 pb-2">
-                <div className="font-bangers text-[11px] uppercase tracking-[0.22em] text-[#fbbc05]/85">
-                    Apuestas
+                <div className="flex items-center justify-between">
+                    <div className="font-bangers text-[11px] uppercase tracking-[0.22em] text-[#fbbc05]/85">
+                        Apuestas
+                    </div>
+                    <EventSwitcher />
                 </div>
                 <div
                     className="font-bangers text-[40px] leading-[0.95] tracking-wide text-white"

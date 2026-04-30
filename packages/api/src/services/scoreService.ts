@@ -225,7 +225,8 @@ export const getFlightScoreboardData = async (flightId: string) => {
                 `SELECT hole_number, par, stroke_index FROM holes WHERE tee_id = $1 ORDER BY hole_number ASC`,
                 [tee.id]
             );
-            if (holesRes.rows.length === 18) {
+            // Accept 9- or 18-hole tees (night-golf side events use 9).
+            if (holesRes.rows.length === 18 || holesRes.rows.length === 9) {
                 teeSiMap[tee.id] = holesRes.rows.map((h: any) => h.stroke_index);
                 const teePars = holesRes.rows.map((h: any) => h.par);
                 teeRatingMap[tee.id] = {

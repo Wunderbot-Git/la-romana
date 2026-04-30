@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useMyEvents } from '@/hooks/useEvents';
+import { useState } from 'react';
+import { useActiveEvent } from '@/hooks/useEvents';
+import { EventSwitcher } from '@/components/EventSwitcher';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { SettingsLink } from '@/components/SettingsLink';
@@ -13,12 +14,7 @@ import { StablefordTable, StablefordFilter } from '@/components/StablefordTable'
  * (so you can see "Mejor del Día" daily standings + their $100/$50 payouts).
  */
 export default function RankingPage() {
-    const { events, isLoading: eventsLoading } = useMyEvents();
-    const activeEvent = useMemo(() => {
-        if (!events || events.length === 0) return null;
-        return events.find(e => e.status === 'live') || events[0];
-    }, [events]);
-
+    const { activeEvent, isLoading: eventsLoading } = useActiveEvent();
     const eventId = activeEvent?.id || '';
     const { data, isLoading, refetch } = useLeaderboard(eventId);
     const [filter, setFilter] = useState<StablefordFilter>('total');
@@ -66,7 +62,10 @@ export default function RankingPage() {
                                 : `Mejor del Día · Día ${filter}`}
                         </div>
                     </div>
-                    <SettingsLink />
+                    <div className="flex items-center gap-2">
+                        <EventSwitcher />
+                        <SettingsLink />
+                    </div>
                 </header>
 
                 {/* Filter pills */}

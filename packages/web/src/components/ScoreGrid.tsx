@@ -123,8 +123,13 @@ function ScoreCell({
 
 export function ScoreGrid({ flightScore, onHoleClick, pendingScores = {}, scrollToHole, half }: ScoreGridProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
-    const allHoles = Array.from({ length: flightScore.parValues.length }, (_, i) => i + 1);
-    const visibleHoles = half === 'back' ? allHoles.slice(9) : allHoles.slice(0, 9);
+    const totalHoles = flightScore.parValues.length;
+    const allHoles = Array.from({ length: totalHoles }, (_, i) => i + 1);
+    // For 9-hole rounds (e.g. night-golf side events) the front/back toggle is
+    // meaningless — show all 9 holes regardless of the `half` prop.
+    const visibleHoles = totalHoles <= 9
+        ? allHoles
+        : half === 'back' ? allHoles.slice(9) : allHoles.slice(0, 9);
 
     /**
      * Detect the shotgun-start hoyo (1..18) for this flight from the score data,
@@ -432,7 +437,7 @@ export function ScoreGrid({ flightScore, onHoleClick, pendingScores = {}, scroll
             let score = 0;
             let played = false;
             if (sh) {
-                for (let h = 1; h <= 18; h++) {
+                for (let h = 1; h <= totalHoles; h++) {
                     const w = sh[h - 1];
                     if (w === 'red') { score++; played = true; }
                     else if (w === 'blue') { score--; played = true; }

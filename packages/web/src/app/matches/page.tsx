@@ -3,19 +3,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { useMyEvents } from '@/hooks/useEvents';
+import { useActiveEvent } from '@/hooks/useEvents';
 import { useRounds, useRoundFlights } from '@/hooks/useRounds';
+import { EventSwitcher } from '@/components/EventSwitcher';
 
 const CARD_DARK =
     'bg-gradient-to-b from-[#1c2f3e] to-[#0f172b] border-[2px] border-[#31316b] rounded-[16px] shadow-[0_4px_12px_rgba(0,0,0,0.5)]';
 
 export default function MatchesPage() {
     const { user } = useAuth();
-    const { events, isLoading: eventsLoading } = useMyEvents();
-    const activeEvent = useMemo(() => {
-        if (!events || events.length === 0) return null;
-        return events.find(e => e.status === 'live') || events[0];
-    }, [events]);
+    const { activeEvent, isLoading: eventsLoading } = useActiveEvent();
     const eventId = activeEvent?.id || '';
     const isOrganizer = activeEvent?.role === 'organizer';
 
@@ -47,7 +44,10 @@ export default function MatchesPage() {
         <div className="relative z-[1] flex min-h-full flex-col pb-24">
             {/* Header */}
             <header className="px-4 pt-6 pb-4">
-                <div className="font-bangers text-[11px] uppercase tracking-[0.22em] text-[#fbbc05]/85">Partidas</div>
+                <div className="flex items-center justify-between">
+                    <div className="font-bangers text-[11px] uppercase tracking-[0.22em] text-[#fbbc05]/85">Partidas</div>
+                    <EventSwitcher />
+                </div>
                 <div
                     className="font-bangers text-[40px] leading-[0.95] tracking-wide text-white"
                     style={{

@@ -217,10 +217,11 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
         netScore: number | null;     // null if round not played at all
         holesPlayed: number;
         stablefordPoints: number;
-        completed: boolean;          // all 18 holes scored
+        completed: boolean;          // all holes for this round scored (9 or 18)
     }
     const potA: PotADay[] = lb.rounds.map(round => {
         const dayPool = numHumans * DAILY_CONTRIB_PER_PLAYER.potA;
+        const holesPerRound = round.holesPerRound ?? 18;
         const standings: DayRow[] = humanStandings
             .map(s => {
                 const br = s.byRound?.find(r => r.roundNumber === round.roundNumber);
@@ -236,7 +237,7 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
                     netScore,
                     holesPlayed: playedHoles.length,
                     stablefordPoints: br?.stablefordPoints ?? 0,
-                    completed: playedHoles.length === 18,
+                    completed: playedHoles.length === holesPerRound,
                 };
             })
             // Lower net is better. Players with no net come last.

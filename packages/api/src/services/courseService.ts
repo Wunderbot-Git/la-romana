@@ -20,20 +20,21 @@ export const createCourseManually = async (eventId: string, input: CreateCourseR
         throw new Error('Course name and at least one tee are required');
     }
 
-    // Validate Tee Rules
+    // Validate Tee Rules — allow 9-hole (side events / night golf) or 18-hole tees
     for (const tee of input.tees) {
         if (!tee.name) throw new Error('Tee name is required');
 
-        if (tee.holes.length !== 18) {
-            throw new Error(`Tee '${tee.name}' must have exactly 18 holes`);
+        const holeCount = tee.holes.length;
+        if (holeCount !== 18 && holeCount !== 9) {
+            throw new Error(`Tee '${tee.name}' must have exactly 9 or 18 holes`);
         }
 
         const strokeIndexes = new Set<number>();
         for (const hole of tee.holes) {
-            if (hole.holeNumber < 1 || hole.holeNumber > 18) {
+            if (hole.holeNumber < 1 || hole.holeNumber > holeCount) {
                 throw new Error(`Invalid hole number ${hole.holeNumber} in tee '${tee.name}'`);
             }
-            if (hole.strokeIndex < 1 || hole.strokeIndex > 18) {
+            if (hole.strokeIndex < 1 || hole.strokeIndex > holeCount) {
                 throw new Error(`Invalid stroke index ${hole.strokeIndex} in tee '${tee.name}'`);
             }
             if (strokeIndexes.has(hole.strokeIndex)) {
