@@ -24,14 +24,13 @@
  *   - "HOYO N"    → in progress, current hole
  *   - "Sin Iniciar" / blank → not started
  *
- * Adapted from the Bogotá MatchCard. La Romana plays 18 holes (Bogotá was 9).
+ * Adapted from the Bogotá MatchCard. Hole count is read from the match
+ * itself (`match.holes.length`), so 9- and 18-hole rounds both work.
  */
 
 import { useState } from 'react';
 import { Avatar } from './Avatar';
 import type { MatchDetail, MatchPlayer } from '@/hooks/useLeaderboard';
-
-const TOTAL_HOLES = 18;
 
 interface MatchCardProps {
     match: MatchDetail;
@@ -82,7 +81,8 @@ export function MatchCard({ match, onToggle, expandedContent }: MatchCardProps) 
         statusTop = match.finalStatus.replace('UP', ' UP');
     }
 
-    const holesRemaining = TOTAL_HOLES - match.holesPlayed;
+    const totalHoles = match.holes.length || 18;
+    const holesRemaining = totalHoles - match.holesPlayed;
     const leadMatch = match.finalStatus.match(/^(\d+)\s*UP/);
     const lead = leadMatch ? parseInt(leadMatch[1], 10) : 0;
     if (isFinal) {

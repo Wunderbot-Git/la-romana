@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useMyEvents } from '@/hooks/useEvents';
+import { useState } from 'react';
+import { useActiveEvent } from '@/hooks/useEvents';
+import { EventSwitcher } from '@/components/EventSwitcher';
 import {
     useLeaderboard,
     LeaderboardData,
@@ -34,12 +35,7 @@ const PILL_CYAN = `${PILL_BASE} bg-gradient-to-b from-[#7DD3FC] to-[#0EA5E9] tex
 // ============================================================================
 
 export default function LeaderboardPage() {
-    const { events, isLoading: eventsLoading } = useMyEvents();
-    const activeEvent = useMemo(() => {
-        if (!events || events.length === 0) return null;
-        return events.find(e => e.status === 'live') || events[0];
-    }, [events]);
-
+    const { activeEvent, isLoading: eventsLoading } = useActiveEvent();
     const eventId = activeEvent?.id || '';
     const { data, isLoading, refetch } = useLeaderboard(eventId);
 
@@ -66,6 +62,9 @@ export default function LeaderboardPage() {
         <PullToRefresh onRefresh={refetch}>
             <div className="flex flex-col min-h-full pb-24 relative z-[1]">
                 <section className="flex flex-col pb-3">
+                    <div className="absolute right-3 top-3 z-10">
+                        <EventSwitcher />
+                    </div>
                     <BattleHeader />
 
                     <TeamScoreHeader

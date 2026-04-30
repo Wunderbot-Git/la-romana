@@ -257,6 +257,7 @@ export interface Round {
     scheduledAt: string | null;
     hcpSinglesPct: number;   // 0.80 for La Romana
     hcpFourballPct: number;
+    holesPerRound: number;   // 9 or 18 (default 18)
     state: RoundState;
     createdAt: string;
 }
@@ -267,6 +268,7 @@ export interface CreateRoundRequest {
     scheduledAt?: string | null;
     hcpSinglesPct?: number;
     hcpFourballPct?: number;
+    holesPerRound?: number;  // 9 or 18 (default 18)
 }
 
 export interface UpdateRoundRequest {
@@ -274,6 +276,7 @@ export interface UpdateRoundRequest {
     scheduledAt?: string | null;
     hcpSinglesPct?: number;
     hcpFourballPct?: number;
+    holesPerRound?: number;
     state?: RoundState;
 }
 
