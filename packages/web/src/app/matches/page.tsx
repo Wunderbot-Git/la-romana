@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { useActiveEvent } from '@/hooks/useEvents';
-import { useRounds, useRoundFlights } from '@/hooks/useRounds';
+import { useRounds, useRoundFlights, pickDefaultRound } from '@/hooks/useRounds';
 import { EventSwitcher } from '@/components/EventSwitcher';
 
 const CARD_DARK =
@@ -21,7 +21,8 @@ export default function MatchesPage() {
     const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
     useEffect(() => {
         if (rounds.length > 0 && !selectedRoundId) {
-            setSelectedRoundId(rounds[0].id);
+            const fallback = pickDefaultRound(rounds);
+            if (fallback) setSelectedRoundId(fallback.id);
         }
     }, [rounds, selectedRoundId]);
 
