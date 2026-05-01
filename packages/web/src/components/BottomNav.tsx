@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useActiveEvent } from '@/hooks/useEvents';
 
-const navItems = [
+const ALL_NAV_ITEMS = [
     { href: '/leaderboard', label: 'Marcador', iconSrc: '/images/nav-marcador.webp' },
     { href: '/score', label: 'Scores', iconSrc: '/images/nav-scores.webp' },
     { href: '/apuestas', label: 'Apuestas', iconSrc: '/images/nav-apuestas.webp' },
@@ -12,6 +13,14 @@ const navItems = [
 
 export function BottomNav() {
     const pathname = usePathname();
+    const { activeEvent } = useActiveEvent();
+    // Hide the "Apuestas" tab on events without betting (`betAmount === null`),
+    // e.g. the Night Golf 9H side event. Default to showing it while events
+    // are loading so the nav doesn't flicker.
+    const apuestasEnabled = activeEvent ? activeEvent.betAmount != null : true;
+    const navItems = apuestasEnabled
+        ? ALL_NAV_ITEMS
+        : ALL_NAV_ITEMS.filter(it => it.href !== '/apuestas');
 
     return (
         <nav
@@ -28,7 +37,10 @@ export function BottomNav() {
             <div className="pointer-events-none absolute inset-0 z-0 rounded-[18px] border border-[#b98546]/70" />
             <div className="pointer-events-none absolute inset-x-5 top-px h-px bg-white/14" />
             <div className="pointer-events-none absolute inset-x-2 bottom-0 h-8 bg-[radial-gradient(ellipse_at_center,rgba(91,166,220,0.16),transparent_72%)]" />
-            <div className="relative z-10 grid h-[72px] grid-cols-4 items-stretch">
+            <div
+                className="relative z-10 grid h-[72px] items-stretch"
+                style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
+            >
                 {navItems.map((item, index) => {
                     const isActive = pathname?.startsWith(item.href);
                     const previousIsActive = index > 0 && pathname?.startsWith(navItems[index - 1].href);
