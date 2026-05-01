@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useActiveEvent } from '@/hooks/useEvents';
 
 /**
@@ -79,6 +80,31 @@ export function EventSwitcher({ className = '' }: { className?: string }) {
                             </button>
                         );
                     })}
+
+                    {activeEvent.role === 'organizer' && (
+                        <div className="border-t-[2px] border-[#31316b]/60 bg-[#0a1322]/80">
+                            <Link
+                                href={`/admin/events/${activeEvent.id}/rounds`}
+                                onClick={() => setOpen(false)}
+                                className="flex items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5"
+                            >
+                                <span className="font-bangers text-[10px] uppercase tracking-wider text-white/55">Admin</span>
+                                <span className="font-bangers text-[11px] uppercase tracking-wider text-[#fbbc05]">
+                                    Rounds & Flights →
+                                </span>
+                            </Link>
+                            <Link
+                                href={`/admin/events/${activeEvent.id}/players`}
+                                onClick={() => setOpen(false)}
+                                className="flex items-center justify-between gap-2 border-t border-[#31316b]/40 px-3 py-2 text-left transition-colors hover:bg-white/5"
+                            >
+                                <span className="font-bangers text-[10px] uppercase tracking-wider text-white/55">Admin</span>
+                                <span className="font-bangers text-[11px] uppercase tracking-wider text-[#fbbc05]">
+                                    Players →
+                                </span>
+                            </Link>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
