@@ -71,13 +71,17 @@ export function useEvent(eventId: string) {
  *
  * Resolution order:
  *   1. localStorage (`la-romana.activeEventId`) if it points to an event the user still has access to
- *   2. First event with status === 'live'
- *   3. First event in the list
+ *   2. The OLDEST live event the user belongs to (so the long-running tournament
+ *      stays the default even after a side-event with a newer `created_at` is added)
+ *   3. The oldest event in the list
  *
  * The setter persists the chosen ID to localStorage so the choice survives reloads
  * across all pages (apuestas, ranking, score, leaderboard, …).
  */
 const ACTIVE_EVENT_KEY = 'la-romana.activeEventId';
+
+const compareByCreatedAtAsc = (a: Event, b: Event): number =>
+    (a.createdAt || '').localeCompare(b.createdAt || '');
 
 export function useActiveEvent() {
     const { events, isLoading, error, refetch } = useMyEvents();
@@ -93,7 +97,10 @@ export function useActiveEvent() {
         if (!events || events.length === 0) return null;
         const stored = storedId ? events.find(e => e.id === storedId) : null;
         if (stored) return stored;
-        return events.find(e => e.status === 'live') || events[0] || null;
+        // Sort ascending by createdAt and pick the oldest live event. Falls back
+        // to the oldest event of any status if no live events exist.
+        const sorted = [...events].sort(compareByCreatedAtAsc);
+        return sorted.find(e => e.status === 'live') || sorted[0] || null;
     }, [events, storedId]);
 
     const setActiveEvent = useCallback((eventId: string) => {
