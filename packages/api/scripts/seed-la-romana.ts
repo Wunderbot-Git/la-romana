@@ -62,16 +62,19 @@ const TEETH_OF_THE_DOG: HoleData[] = [
 ];
 
 // Ocean's 4 (PGA Ocean's 4 by Bahia Principe). Blue tees. Par 72.
+// Pars + stroke indices confirmed against the official scorecard 2026-05-01
+// (Round 2 day). Front: par 4 4 3 4 5 4 3 5 4 / SI 15 1 13 9 11 17 5 7 3.
+// Back:  par 4 4 5 3 4 4 3 4 5 / SI 12 6 10 2 18 14 4 8 16.
 const OCEANS_FOUR: HoleData[] = [
     { hole: 1, par: 4, si: 15 },
     { hole: 2, par: 4, si: 1 },
     { hole: 3, par: 3, si: 13 },
     { hole: 4, par: 4, si: 9 },
-    { hole: 5, par: 4, si: 11 },
-    { hole: 6, par: 4, si: 7 },
-    { hole: 7, par: 3, si: 17 },
-    { hole: 8, par: 5, si: 5 },
-    { hole: 9, par: 5, si: 3 },
+    { hole: 5, par: 5, si: 11 },
+    { hole: 6, par: 4, si: 17 },
+    { hole: 7, par: 3, si: 5 },
+    { hole: 8, par: 5, si: 7 },
+    { hole: 9, par: 4, si: 3 },
     { hole: 10, par: 4, si: 12 },
     { hole: 11, par: 4, si: 6 },
     { hole: 12, par: 5, si: 10 },
