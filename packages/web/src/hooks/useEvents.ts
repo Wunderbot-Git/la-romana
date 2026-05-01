@@ -8,6 +8,8 @@ export interface Event {
     name: string;
     status: 'draft' | 'live' | 'completed' | 'closed';
     eventCode: string;
+    /** Per-bet amount in USD. `null` disables apuestas/predicciones for this event. */
+    betAmount: number | null;
     createdAt: string;
     role?: 'organizer' | 'player';
 }

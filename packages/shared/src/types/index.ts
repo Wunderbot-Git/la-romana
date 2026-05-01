@@ -52,11 +52,19 @@ export interface PasswordResetConfirmRequest {
 export interface Event {
     id: string;
     name: string;
-    start_date: string; // ISO Date
-    end_date: string;   // ISO Date
-    format: MatchType;
+    eventCode?: string;
+    /** Per-bet amount in USD. `null` disables apuestas/predicciones for this event. */
+    betAmount?: number | null;
+    startDate?: string;     // ISO Date
+    endDate?: string;       // ISO Date
+    format?: MatchType;
     status: EventState;
-    created_at: string;
+    createdAt?: string;
+    createdByUserId?: string;
+    // Legacy snake-case aliases — kept for any consumer still reading raw DB rows.
+    start_date?: string;
+    end_date?: string;
+    created_at?: string;
 }
 
 export interface CreateEventRequest {

@@ -4,6 +4,25 @@ import { Event, CreateEventRequest, UpdateEventRequest } from '@ryder-cup/shared
 // Ideally, basic validation here (dates, enum validity)
 // Assuming controller handles basic type checks or schemas
 
+/**
+ * Map a raw Postgres `events` row (snake_case) into the public-facing
+ * camelCase shape the web client expects. The repository returns rows
+ * untransformed, so callers that surface events to HTTP clients should
+ * pipe them through here.
+ */
+const toPublic = (row: any): Record<string, any> => ({
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    eventCode: row.event_code,
+    betAmount: row.bet_amount === null || row.bet_amount === undefined ? null : Number(row.bet_amount),
+    startDate: row.start_date,
+    endDate: row.end_date,
+    format: row.format,
+    createdAt: row.created_at,
+    createdByUserId: row.created_by_user_id,
+});
+
 export const createEvent = async (input: CreateEventRequest, userId: string): Promise<Event> => {
     // Validate dates order
     if (new Date(input.startDate) > new Date(input.endDate)) {
@@ -21,15 +40,17 @@ export const createEvent = async (input: CreateEventRequest, userId: string): Pr
         repo.addMember(event.id, userId, 'organizer')
     );
 
-    return event;
+    return toPublic(event) as Event;
 };
 
 export const getEventById = async (id: string): Promise<Event | null> => {
-    return eventRepository.getEventById(id);
+    const row = await eventRepository.getEventById(id);
+    return row ? (toPublic(row) as Event) : null;
 };
 
 export const getAllEvents = async (): Promise<Event[]> => {
-    return eventRepository.getAllEvents();
+    const rows = await eventRepository.getAllEvents();
+    return rows.map(r => toPublic(r) as Event);
 };
 
 export const updateEvent = async (id: string, input: UpdateEventRequest): Promise<Event | null> => {
@@ -38,7 +59,8 @@ export const updateEvent = async (id: string, input: UpdateEventRequest): Promis
             throw new Error('Start date must be before end date');
         }
     }
-    return eventRepository.updateEvent(id, input);
+    const row = await eventRepository.updateEvent(id, input);
+    return row ? (toPublic(row) as Event) : null;
 };
 
 // ... imports
