@@ -56,9 +56,30 @@ export function AdminSection({ eventId }: { eventId: string }) {
     return (
         <div className="bg-white thick-border rounded-[20px] p-4">
             <h2 className="text-xs font-bangers text-[#1e293b] uppercase tracking-widest mb-3">Admin</h2>
+
+            <Link
+                href={`/admin/events/${eventId}/rounds`}
+                className="flex items-center gap-3 py-2.5 px-3 bg-forest-deep/5 rounded-xl hover:bg-forest-deep/10 transition-colors border border-gold-border/20"
+            >
+                <div className="w-8 h-8 bg-[#fbbc05] rounded-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M2 12h20" />
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                </div>
+                <div className="flex-1">
+                    <p className="text-sm font-fredoka font-bold text-forest-deep">Rondas y Flights</p>
+                    <p className="text-[10px] text-forest-deep/40 font-fredoka">Crear flights, asignar jugadores, ajustar tees por ronda</p>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-border/50">
+                    <path d="m9 18 6-6-6-6" />
+                </svg>
+            </Link>
+
             <Link
                 href={`/admin/events/${eventId}/players`}
-                className="flex items-center gap-3 py-2.5 px-3 bg-forest-deep/5 rounded-xl hover:bg-forest-deep/10 transition-colors border border-gold-border/20"
+                className="flex items-center gap-3 py-2.5 px-3 bg-forest-deep/5 rounded-xl hover:bg-forest-deep/10 transition-colors border border-gold-border/20 mt-2"
             >
                 <div className="w-8 h-8 bg-forest-deep rounded-lg flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
