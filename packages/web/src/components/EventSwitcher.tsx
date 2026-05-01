@@ -81,8 +81,11 @@ export function EventSwitcher({ className = '' }: { className?: string }) {
                         );
                     })}
 
-                    {activeEvent.role === 'organizer' && (
-                        <div className="border-t-[2px] border-[#31316b]/60 bg-[#0a1322]/80">
+                    {/* Admin shortcuts. The /admin/* pages enforce their own
+                        password-gated access, so we render the link for every
+                        signed-in user — non-organizers just bounce off the
+                        admin auth screen. */}
+                    <div className="border-t-[2px] border-[#31316b]/60 bg-[#0a1322]/80">
                             <Link
                                 href={`/admin/events/${activeEvent.id}/rounds`}
                                 onClick={() => setOpen(false)}
@@ -104,7 +107,6 @@ export function EventSwitcher({ className = '' }: { className?: string }) {
                                 </span>
                             </Link>
                         </div>
-                    )}
                 </div>
             )}
         </div>
