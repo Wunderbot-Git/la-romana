@@ -12,6 +12,7 @@ import { getStrokesForHole } from './strokeAllocation';
 import { calculateNetScore } from './netScore';
 import { compareHoleScores, calculateMatchState, HoleResult, MatchState, Team } from './matchStatus';
 import { calculateMatchResult, MatchResult } from './matchResult';
+import { detectPlayOrder } from './playOrder';
 
 export interface FourballPlayerInput {
     handicapIndex: number;
@@ -104,8 +105,23 @@ export const calculateFourballMatch = (input: FourballMatchInput): FourballMatch
         totalHoles
     );
 
-    for (let i = 0; i < numHoles; i++) {
-        const holeNumber = i + 1;
+    // Iterate in PLAY ORDER (10→…→18→1→…→9 for a shotgun-10 start; standard
+    // [1..18] for a hoyo-1 start). Ensures per-hole `matchState` snapshots
+    // and the "match decided" early-exit reflect the order the four players
+    // actually played the course. See playOrder.ts for detection details.
+    const playOrder = detectPlayOrder(
+        [
+            input.redTeam.player1.grossScores,
+            input.redTeam.player2.grossScores,
+            input.blueTeam.player1.grossScores,
+            input.blueTeam.player2.grossScores,
+        ],
+        totalHoles,
+    );
+
+    for (let step = 0; step < numHoles; step++) {
+        const holeNumber = playOrder[step];
+        const i = holeNumber - 1;
 
         // Red Team
         const redP1Gross = input.redTeam.player1.grossScores[i];

@@ -18,6 +18,7 @@ import { getStrokesForHole } from './strokeAllocation';
 import { calculateNetScore } from './netScore';
 import { compareHoleScores, calculateMatchState, HoleResult, MatchState, Team } from './matchStatus';
 import { calculateMatchResult, MatchResult } from './matchResult';
+import { detectPlayOrder } from './playOrder';
 
 export interface SinglesPlayerInput {
     handicapIndex: number;
@@ -94,8 +95,21 @@ export const calculateSinglesMatch = (input: SinglesMatchInput): SinglesMatchOut
     const redSI = input.redPlayer.strokeIndexes ?? input.strokeIndexes;
     const blueSI = input.bluePlayer.strokeIndexes ?? input.strokeIndexes;
 
-    for (let i = 0; i < Math.min(input.redPlayer.grossScores.length, totalHoles); i++) {
-        const holeNumber = i + 1;
+    // Iterate in PLAY ORDER, not numerical hoyo order. For shotgun starts (group
+    // tees off on hoyo 10) this means we walk 10,11,…,18,1,…,9 — so the per-hole
+    // `matchState` snapshots and the early "match decided" exit fire at the
+    // moment the players actually reached that point on the course. Standard
+    // hoyo-1 starts produce playOrder = [1,2,…,18] and behave identically to
+    // before. See `playOrder.ts` for the detection heuristic.
+    const playOrder = detectPlayOrder(
+        [input.redPlayer.grossScores, input.bluePlayer.grossScores],
+        totalHoles,
+    );
+    const maxIters = Math.min(input.redPlayer.grossScores.length, totalHoles);
+
+    for (let step = 0; step < maxIters; step++) {
+        const holeNumber = playOrder[step];
+        const i = holeNumber - 1;
         const redStrokeIndex = redSI[i];
         const blueStrokeIndex = blueSI[i];
         // For display: use red's SI as the canonical hole-row label.
@@ -106,8 +120,8 @@ export const calculateSinglesMatch = (input: SinglesMatchInput): SinglesMatchOut
         const blueGross = input.bluePlayer.grossScores[i];
 
         // Hole not yet played (null/0 = no score row in DB).
-        // Skip — does NOT terminate the match calc, so shotgun-start orders
-        // (e.g. tee off on hole 10) are scored correctly once enough holes finish.
+        // Skip — does NOT terminate the match calc, so a partial round (some
+        // holes still empty) is scored correctly through the holes that finish.
         if (!redGross || !blueGross) continue;
 
         // Full Handicap Match Play: each player's strokes resolved against their OWN SI
