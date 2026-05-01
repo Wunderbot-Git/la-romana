@@ -44,7 +44,24 @@ export default function ApuestasPage() {
 
     const [tab, setTab] = useState<Tab>('matches');
     const [selectedRoundIdx, setSelectedRoundIdx] = useState<number>(0);
+    const [hasUserSelectedRound, setHasUserSelectedRound] = useState(false);
     const [openSheet, setOpenSheet] = useState<OpenSheet | null>(null);
+
+    // Default to today's round (or first non-completed) once the leaderboard
+    // arrives. Only auto-set if the user hasn't manually picked a round yet.
+    useEffect(() => {
+        if (hasUserSelectedRound || !leaderboard) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const todaysIdx = leaderboard.rounds.findIndex((r: any) => (r.scheduledAt ?? r.scheduled_at)?.slice(0, 10) === today);
+        if (todaysIdx >= 0) { setSelectedRoundIdx(todaysIdx); return; }
+        const liveIdx = leaderboard.rounds.findIndex((r: any) => r.state !== 'completed');
+        if (liveIdx >= 0) setSelectedRoundIdx(liveIdx);
+    }, [leaderboard, hasUserSelectedRound]);
+
+    const handleRoundChange = (idx: number) => {
+        setHasUserSelectedRound(true);
+        setSelectedRoundIdx(idx);
+    };
 
     if (!user) {
         return <div className="p-8 text-center font-fredoka text-white/60">Inicia sesión para acceder a las apuestas.</div>;
@@ -125,7 +142,7 @@ export default function ApuestasPage() {
                         leaderboard={leaderboard}
                         myBets={stats?.bets ?? []}
                         selectedRoundIdx={selectedRoundIdx}
-                        setSelectedRoundIdx={setSelectedRoundIdx}
+                        setSelectedRoundIdx={handleRoundChange}
                         onCardClick={setOpenSheet}
                     />
                 )}

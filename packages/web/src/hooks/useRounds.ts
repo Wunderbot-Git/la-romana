@@ -15,6 +15,24 @@ export interface Round {
     createdAt: string;
 }
 
+/**
+ * Pick the round to surface by default on round-aware pages
+ * (Matches / Predicciones / Score auto-resolver):
+ *   1. Round whose `scheduledAt` falls on today (DR-local date)
+ *   2. First round with `state !== 'completed'`
+ *   3. First round in the list
+ *
+ * Returns `null` only if `rounds` is empty.
+ */
+export function pickDefaultRound<T extends { scheduledAt?: string | null; state?: string }>(rounds: T[]): T | null {
+    if (rounds.length === 0) return null;
+    const todayLocal = new Date().toISOString().slice(0, 10);
+    const todays = rounds.find(r => r.scheduledAt?.slice(0, 10) === todayLocal);
+    if (todays) return todays;
+    const live = rounds.find(r => r.state !== 'completed');
+    return live ?? rounds[0];
+}
+
 export function useRounds(eventId: string) {
     const [rounds, setRounds] = useState<Round[]>([]);
     const [isLoading, setIsLoading] = useState(true);

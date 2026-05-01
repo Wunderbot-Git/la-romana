@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useActiveEvent } from '@/hooks/useEvents';
-import { useRounds, useRoundFlights } from '@/hooks/useRounds';
+import { useRounds, useRoundFlights, pickDefaultRound } from '@/hooks/useRounds';
 import { useFlightScores, useSubmitScores } from '@/hooks/useScores';
 import { ScoreGrid } from '@/components/ScoreGrid';
 
@@ -41,11 +41,7 @@ function ScorePageInner() {
     // flight in it; redirect once we know it. Organizers without a flight
     // assignment fall through to /matches.
     const { rounds, isLoading: roundsLoading } = useRounds(eventId);
-    const defaultRoundId = useMemo(() => {
-        if (rounds.length === 0) return null;
-        const active = rounds.find(r => r.state !== 'completed');
-        return (active ?? rounds[0]).id;
-    }, [rounds]);
+    const defaultRoundId = useMemo(() => pickDefaultRound(rounds)?.id ?? null, [rounds]);
     const needsResolve = !flightIdParam || !roundIdParam;
     const resolveRoundId = needsResolve ? defaultRoundId : null;
     const { flights: resolverFlights, isLoading: resolverLoading } = useRoundFlights(eventId, resolveRoundId);
