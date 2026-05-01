@@ -60,6 +60,7 @@ export interface RoundBreakdown {
     roundId: string;
     roundNumber: number;
     courseName: string;
+    scheduledAt: string | null;
     state: 'open' | 'completed' | 'reopened';
     teamPoints: { red: number; blue: number };
     teamPointsProjected: { red: number; blue: number };
