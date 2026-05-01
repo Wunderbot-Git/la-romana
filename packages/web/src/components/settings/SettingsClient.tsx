@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
-import { useMyEvents } from '@/hooks/useEvents';
+import { useActiveEvent } from '@/hooks/useEvents';
 import { usePlayers } from '@/hooks/usePlayers';
 import { AccountSection } from './AccountSection';
 import { EventSection } from './EventSection';
@@ -11,13 +11,7 @@ import { AppInfoSection } from './AppInfoSection';
 
 export function SettingsClient() {
     const { user } = useAuth();
-    const { events, isLoading: eventsLoading, refetch: refetchEvents } = useMyEvents();
-
-    const activeEvent = useMemo(() => {
-        if (!events || events.length === 0) return null;
-        return events.find(e => e.status === 'live') || events[0];
-    }, [events]);
-
+    const { events, activeEvent, refetch: refetchEvents } = useActiveEvent();
     const eventId = activeEvent?.id || '';
     const { players } = usePlayers(eventId);
 
