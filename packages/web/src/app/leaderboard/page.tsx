@@ -77,7 +77,7 @@ export default function LeaderboardPage() {
                 </section>
 
                 <main className="px-4">
-                    <RyderTab data={data} />
+                    <RyderTab data={data} eventId={eventId} />
                 </main>
             </div>
         </PullToRefresh>
@@ -87,12 +87,43 @@ export default function LeaderboardPage() {
 // ============================================================================
 // Ryder tab
 // ============================================================================
-function RyderTab({ data }: { data: LeaderboardData }) {
-    const [selectedRoundId, setSelectedRoundId] = useState<string>(
-        data.rounds[0]?.roundId ?? ''
+const LEADERBOARD_ROUND_KEY = (eventId: string) => `la-romana.leaderboard.roundId.${eventId}`;
+
+/**
+ * Resolve the round to start on:
+ *   1. localStorage choice (per-event), if it still maps to a round
+ *   2. Round whose scheduledAt date matches today
+ *   3. First non-completed round
+ *   4. First round
+ */
+function pickInitialRoundId(rounds: LeaderboardData['rounds'], eventId: string): string {
+    if (rounds.length === 0) return '';
+    if (typeof window !== 'undefined' && eventId) {
+        try {
+            const stored = window.localStorage.getItem(LEADERBOARD_ROUND_KEY(eventId));
+            if (stored && rounds.some(r => r.roundId === stored)) return stored;
+        } catch { /* ignore */ }
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const todays = rounds.find(r => r.scheduledAt?.slice(0, 10) === today);
+    if (todays) return todays.roundId;
+    const live = rounds.find(r => r.state !== 'completed');
+    return (live ?? rounds[0]).roundId;
+}
+
+function RyderTab({ data, eventId }: { data: LeaderboardData; eventId: string }) {
+    const [selectedRoundId, setSelectedRoundId] = useState<string>(() =>
+        pickInitialRoundId(data.rounds, eventId),
     );
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+
+    const handleSelectRound = (roundId: string) => {
+        setSelectedRoundId(roundId);
+        if (typeof window !== 'undefined' && eventId) {
+            try { window.localStorage.setItem(LEADERBOARD_ROUND_KEY(eventId), roundId); } catch { /* ignore */ }
+        }
+    };
 
     const round = data.rounds.find(r => r.roundId === selectedRoundId) ?? data.rounds[0];
     if (!round) {
@@ -117,7 +148,7 @@ function RyderTab({ data }: { data: LeaderboardData }) {
             <RoundSelector
                 rounds={data.rounds}
                 selectedRoundId={selectedRoundId}
-                onSelect={setSelectedRoundId}
+                onSelect={handleSelectRound}
             />
 
             {/* Sticky group — round score + match filters all stay docked at the

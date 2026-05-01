@@ -72,6 +72,7 @@ export interface RoundBreakdown {
     roundId: string;
     roundNumber: number;
     courseName: string;
+    scheduledAt: string | null;
     state: 'open' | 'completed' | 'reopened';
     holesPerRound: number;
     teamPoints: { red: number; blue: number };
@@ -205,6 +206,7 @@ interface RoundContext {
     roundNumber: number;
     courseId: string;
     courseName: string;
+    scheduledAt: string | null;
     state: 'open' | 'completed' | 'reopened';
     hcpSinglesPct: number;
     hcpFourballPct: number;
@@ -215,7 +217,7 @@ const loadRounds = async (eventId: string): Promise<RoundContext[]> => {
     const pool = getPool();
     const res = await pool.query(
         `SELECT r.id, r.round_number, r.course_id, c.name AS course_name, r.state,
-                r.hcp_singles_pct, r.hcp_fourball_pct, r.holes_per_round
+                r.scheduled_at, r.hcp_singles_pct, r.hcp_fourball_pct, r.holes_per_round
          FROM rounds r
          JOIN courses c ON c.id = r.course_id
          WHERE r.event_id = $1
@@ -227,6 +229,7 @@ const loadRounds = async (eventId: string): Promise<RoundContext[]> => {
         roundNumber: r.round_number,
         courseId: r.course_id,
         courseName: r.course_name,
+        scheduledAt: r.scheduled_at ? r.scheduled_at.toISOString() : null,
         state: r.state,
         hcpSinglesPct: Number(r.hcp_singles_pct),
         hcpFourballPct: Number(r.hcp_fourball_pct),
@@ -764,6 +767,7 @@ export const getLeaderboard = async (eventId: string): Promise<LeaderboardData> 
             roundId: round.id,
             roundNumber: round.roundNumber,
             courseName: round.courseName,
+            scheduledAt: round.scheduledAt,
             state: round.state,
             holesPerRound: round.holesPerRound,
             teamPoints: { red: roundRedPoints, blue: roundBluePoints },
