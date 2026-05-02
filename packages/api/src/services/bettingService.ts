@@ -60,7 +60,9 @@ export const isEventStarted = async (eventId: string): Promise<boolean> => {
     return (res.rowCount ?? 0) > 0;
 };
 
-/** Place (or replace, if not yet locked) a match bet. */
+/** Place (or replace) a match bet. Bets stay OPEN at all times for La Romana
+ *  per Phil-Request 2026-05-02 — players can bet (or change a bet) at any
+ *  point during the round, including after a match is fully scored. */
 export const placeBet = async (input: PlaceMatchBetInput): Promise<Bet> => {
     // Validate event allows betting (bet_amount > 0). We use our fixed $2 but still
     // gate on bet_amount being set so this is configurable per event later.
@@ -72,12 +74,7 @@ export const placeBet = async (input: PlaceMatchBetInput): Promise<Bet> => {
         throw new Error('Las apuestas no están habilitadas en este evento.');
     }
 
-    // Lock check
-    if (await isFlightStarted(input.roundId, input.flightId)) {
-        throw new Error('Apuestas cerradas: el partido ya comenzó.');
-    }
-
-    // Replace existing bet if one exists (still allowed because not locked yet)
+    // Replace existing bet if one exists (still allowed — bets stay open)
     const existing = await getExistingMatchBet(
         input.roundId,
         input.flightId,
