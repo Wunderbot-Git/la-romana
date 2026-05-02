@@ -17,7 +17,8 @@ const CARD_DARK =
  *   - 'total'  → cumulative Stableford ranking across all rounds (default)
  *   - 1|2|3    → daily ranking ("Mejor del Día") for that round, with $100/$50 payouts on top-2
  *
- * Phantom (Fantasma) is filtered out of all rankings.
+ * Phantom (Fantasma) IS included — Phil wants the slot's net contribution to
+ * count in the Stableford / Mejor del Día rankings.
  */
 export type StablefordFilter = 'total' | number;
 
@@ -30,8 +31,8 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
     const isDayFilter = typeof filter === 'number';
     const dayNumber = isDayFilter ? (filter as number) : null;
 
-    // Filter out phantom + apply day filter where applicable
-    const allStandings = data.stablefordStandings.filter(s => s.playerName !== 'Fantasma');
+    // Phantom is intentionally INCLUDED — counts in Stableford + Mejor del Día.
+    const allStandings = data.stablefordStandings;
 
     // Day filter: rank by net stroke total (sum of gross − strokes per hole).
     // Lower is better. Players with no scored holes are excluded.
