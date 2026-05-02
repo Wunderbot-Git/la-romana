@@ -86,30 +86,31 @@ const OCEANS_FOUR: HoleData[] = [
     { hole: 18, par: 5, si: 16 },
 ];
 
-// Dye Fore — Casa de Campo. Default combo: Marina (front 9, odd SIs) + Chavon (back 9, even SIs).
-// User noted this is not finalized; admin can swap to Marina+Lagos or Chavon+Lagos.
-// Par per hole transcribed from scorecard; admin verifies before Round 3.
+// Dye Fore — Casa de Campo. Default combo: Marina (front 9) + Chavon (back 9).
+// Pars + stroke indices confirmed against the official scorecard 2026-05-02
+// (Round 3 day). Front: par 5 4 3 4 4 3 4 5 4 / SI 5 9 15 1 13 17 11 3 7.
+// Back:  par 5 4 3 4 4 3 4 4 5 / SI 4 2 16 12 10 14 6 18 8.
 const DYE_FORE_MARINA_CHAVON: HoleData[] = [
     // Marina front 9
     { hole: 1, par: 5, si: 5 },
-    { hole: 2, par: 4, si: 7 },
-    { hole: 3, par: 3, si: 17 },
+    { hole: 2, par: 4, si: 9 },
+    { hole: 3, par: 3, si: 15 },
     { hole: 4, par: 4, si: 1 },
-    { hole: 5, par: 4, si: 9 },
-    { hole: 6, par: 3, si: 15 },
-    { hole: 7, par: 4, si: 13 },
-    { hole: 8, par: 5, si: 11 },
-    { hole: 9, par: 4, si: 3 },
+    { hole: 5, par: 4, si: 13 },
+    { hole: 6, par: 3, si: 17 },
+    { hole: 7, par: 4, si: 11 },
+    { hole: 8, par: 5, si: 3 },
+    { hole: 9, par: 4, si: 7 },
     // Chavon back 9
     { hole: 10, par: 5, si: 4 },
     { hole: 11, par: 4, si: 2 },
-    { hole: 12, par: 3, si: 14 },
-    { hole: 13, par: 4, si: 8 },
-    { hole: 14, par: 4, si: 12 },
-    { hole: 15, par: 3, si: 16 },
-    { hole: 16, par: 4, si: 10 },
+    { hole: 12, par: 3, si: 16 },
+    { hole: 13, par: 4, si: 12 },
+    { hole: 14, par: 4, si: 10 },
+    { hole: 15, par: 3, si: 14 },
+    { hole: 16, par: 4, si: 6 },
     { hole: 17, par: 4, si: 18 },
-    { hole: 18, par: 5, si: 6 },
+    { hole: 18, par: 5, si: 8 },
 ];
 
 // =============================================
