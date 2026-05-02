@@ -7,12 +7,15 @@
  *   C) Pot Total Viaje    — gesamt $20/Spieler/Tag = $900, Top-3 nach (Stableford + daily wins)
  *                            Auszahlung: 1° $550, 2° $250, 3° $100
  *
- * Phantom (Fantasma) zahlt NICHT in den Pool ein, wird aber MIT in die
- * Stableford-/Mejor-del-Día-Rankings eingerechnet (Phil-Request 2026-05-02).
- * D. h. das Phantom kann technisch eine Position einnehmen — die Pool-Größen
- * werden aber weiterhin aus der reinen Menschen-Anzahl gerechnet, sodass keine
- * Geldbeträge verschwinden außer in dem (seltenen) Fall, dass das Phantom
- * 1./2. Mejor del Día oder Top-3 Trip-Total wird.
+ * Phantom (Fantasma) zahlt NICHT in den Pool ein und wird aus den
+ * Geld-Rankings (Mejor del Día, Trip Total, Overall) ausgeschlossen
+ * (Phil-Request 2026-05-02, revidiert): Fantasma gewinnt kein Geld.
+ * Pool-Größen werden weiterhin aus der reinen Menschen-Anzahl gerechnet
+ * (15 Spieler · $40/Tag = $600/Tag), und nur diese 15 sind rankable.
+ *
+ * Ausnahme: Für die MVP- / Worst-Player-Wetten (siehe generalBettingService)
+ * zählt Fantasma weiter mit, damit Mitspieler tatsächlich auf ihn setzen
+ * können. Diese Logik lebt dort, nicht hier.
  */
 
 import { getPool } from '../config/database';
@@ -191,13 +194,13 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
     // Standings indexed by playerId (only for those with scores)
     const standingsById = new Map(lb.stablefordStandings.map(s => [s.playerId, s] as const));
 
-    // Build playerStandings from the FULL roster including the phantom — Phil
-    // requested that Fantasma counts in the Stableford / pot rankings (someone
-    // is actually playing the slot, so their net contributes to "Mejor del Día"
-    // and to the trip total). Pool SIZES still come from the human count only
-    // (Fantasma doesn't pay), so the prize money stays $150/day · $450 Ryder ·
-    // $900 trip — but Fantasma can rank and "win" a position. The user accepts
-    // that any phantom payout sits unclaimed in the pot if it lands first/second.
+    // Build playerStandings from the FULL roster (including the phantom) so
+    // we can later separate humans from Fantasma. Phil's revised rule: the
+    // phantom must NOT be eligible for any money ranking here (Mejor del Día,
+    // Trip Total, Overall). Only humans appear in the standings tables below.
+    // Fantasma still appears in the Stableford / MVP / Worst-Player betting
+    // logic (which lives in generalBettingService) so other players can bet
+    // on him.
     const playerStandings = fullRoster
         .map(r => {
             const s = standingsById.get(r.id);
@@ -233,7 +236,7 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
     const potA: PotADay[] = lb.rounds.map(round => {
         const dayPool = numHumans * DAILY_CONTRIB_PER_PLAYER.potA;
         const holesPerRound = round.holesPerRound ?? 18;
-        const standings: DayRow[] = playerStandings
+        const standings: DayRow[] = humanStandings
             .map(s => {
                 const br = s.byRound?.find(r => r.roundNumber === round.roundNumber);
                 const holes = br?.holes ?? [];
@@ -345,7 +348,7 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
     }
 
     const tripPool = numHumans * DAILY_CONTRIB_PER_PLAYER.potC * NUM_DAYS;
-    const cRows = playerStandings
+    const cRows = humanStandings
         .map(s => ({
             playerId: s.playerId,
             playerName: s.playerName,
@@ -401,7 +404,7 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
         potC.rankings.map(r => [r.playerId, r.projectedPayout]),
     );
 
-    const summaryRows: Omit<OverallStanding, 'rank'>[] = playerStandings.map(s => {
+    const summaryRows: Omit<OverallStanding, 'rank'>[] = humanStandings.map(s => {
         const a = dailyWinningsByPlayer.get(s.playerId) ?? 0;
         const b = potBShareByPlayer.get(s.playerId) ?? 0;
         const c = potCByPlayer.get(s.playerId) ?? 0;
