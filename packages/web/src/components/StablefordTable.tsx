@@ -53,6 +53,7 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
                   return {
                       ...s,
                       _dayNet: dayNet,
+                      _dayPts: round?.stablefordPoints ?? 0,
                       _dayHolesPlayed: played.length,
                   };
               })
@@ -142,7 +143,8 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
                         <th className="px-2 py-2 text-left w-8">#</th>
                         <th className="px-2 py-2 text-left">Jugador</th>
                         <th className="px-2 py-2 text-center">HCP</th>
-                        <th className="px-2 py-2 text-right">{isDayFilter ? 'Net' : 'Pts'}</th>
+                        {isDayFilter && <th className="px-2 py-2 text-right">Net</th>}
+                        <th className="px-2 py-2 text-right">Pts</th>
                         <th className="px-2 py-2 text-center">{isDayFilter ? 'Premio' : 'Rondas'}</th>
                     </tr>
                 </thead>
@@ -156,7 +158,8 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
                                 : s.team === 'blue'
                                 ? 'text-team-blue'
                                 : 'text-white';
-                        const dayPoints = isDayFilter ? (s as any)._dayNet ?? 0 : s.stablefordCumulative;
+                        const dayNet = isDayFilter ? (s as any)._dayNet ?? 0 : null;
+                        const ptsValue = isDayFilter ? (s as any)._dayPts ?? 0 : s.stablefordCumulative;
                         const payout = isDayFilter ? (i === 0 ? 100 : i === 1 ? 50 : 0) : 0;
                         return (
                             <Fragment key={s.playerId}>
@@ -190,8 +193,13 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
                                     <td className="px-2 py-2 text-center text-white/60 align-middle">
                                         {s.handicapIndex}
                                     </td>
+                                    {isDayFilter && (
+                                        <td className="px-2 py-2 text-right font-bangers text-white text-lg align-middle">
+                                            {dayNet}
+                                        </td>
+                                    )}
                                     <td className="px-2 py-2 text-right font-bangers text-white text-lg align-middle">
-                                        {dayPoints}
+                                        {ptsValue}
                                     </td>
                                     <td className="px-2 py-2 text-center align-middle">
                                         {isDayFilter ? (
@@ -209,7 +217,7 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
                                 </tr>
                                 {isExpanded && (
                                     <tr className="bg-[#0a1322]/85 border-t border-[#31316b]/40">
-                                        <td colSpan={5} className="px-3 py-3">
+                                        <td colSpan={isDayFilter ? 6 : 5} className="px-3 py-3">
                                             <PerRoundBreakdown
                                                 standing={s}
                                                 totalRounds={totalRounds}
@@ -223,7 +231,7 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
                     })}
                     {standings.length === 0 && (
                         <tr>
-                            <td colSpan={5} className="px-3 py-6 text-center text-white/40 italic font-fredoka">
+                            <td colSpan={isDayFilter ? 6 : 5} className="px-3 py-6 text-center text-white/40 italic font-fredoka">
                                 {isDayFilter ? 'Día sin jugar' : 'Sin puntos todavía'}
                             </td>
                         </tr>
