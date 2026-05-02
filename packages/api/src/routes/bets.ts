@@ -5,7 +5,6 @@ import {
     getMatchBets,
     getPersonalStats,
     getTournamentSettlement,
-    isFlightStarted,
 } from '../services/bettingService';
 
 export const betRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -16,8 +15,9 @@ export const betRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
             const { roundId, flightId, segmentType } = request.params;
             try {
                 const data = await getMatchBets(roundId, flightId, segmentType);
-                const locked = await isFlightStarted(roundId, flightId);
-                return reply.send({ ...data, locked });
+                // Bets stay OPEN at all times for La Romana — surface
+                // `locked: false` so the UI keeps the bet form active.
+                return reply.send({ ...data, locked: false });
             } catch (err: any) {
                 return reply.status(500).send({ error: err.message });
             }

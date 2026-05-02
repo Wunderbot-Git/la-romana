@@ -7,7 +7,12 @@
  *   C) Pot Total Viaje    — gesamt $20/Spieler/Tag = $900, Top-3 nach (Stableford + daily wins)
  *                            Auszahlung: 1° $550, 2° $250, 3° $100
  *
- * Phantom (Fantasma) zahlt nicht und kriegt nichts — wird überall rausgefiltert.
+ * Phantom (Fantasma) zahlt NICHT in den Pool ein, wird aber MIT in die
+ * Stableford-/Mejor-del-Día-Rankings eingerechnet (Phil-Request 2026-05-02).
+ * D. h. das Phantom kann technisch eine Position einnehmen — die Pool-Größen
+ * werden aber weiterhin aus der reinen Menschen-Anzahl gerechnet, sodass keine
+ * Geldbeträge verschwinden außer in dem (seltenen) Fall, dass das Phantom
+ * 1./2. Mejor del Día oder Top-3 Trip-Total wird.
  */
 
 import { getPool } from '../config/database';
@@ -186,10 +191,14 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
     // Standings indexed by playerId (only for those with scores)
     const standingsById = new Map(lb.stablefordStandings.map(s => [s.playerId, s] as const));
 
-    // Build humanStandings from the full roster (not just from leaderboard standings).
-    // Players without scores get a zero-pts placeholder so Pot C still lists them.
-    const humanStandings = fullRoster
-        .filter(r => r.first_name !== PHANTOM_NAME)
+    // Build playerStandings from the FULL roster including the phantom — Phil
+    // requested that Fantasma counts in the Stableford / pot rankings (someone
+    // is actually playing the slot, so their net contributes to "Mejor del Día"
+    // and to the trip total). Pool SIZES still come from the human count only
+    // (Fantasma doesn't pay), so the prize money stays $150/day · $450 Ryder ·
+    // $900 trip — but Fantasma can rank and "win" a position. The user accepts
+    // that any phantom payout sits unclaimed in the pot if it lands first/second.
+    const playerStandings = fullRoster
         .map(r => {
             const s = standingsById.get(r.id);
             const playerName = [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || r.first_name;
@@ -202,8 +211,10 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
                 ryderIndividualCumulative: s?.ryderIndividualCumulative ?? 0,
                 roundsPlayed: s?.roundsPlayed ?? 0,
                 byRound: s?.byRound,
+                isPhantom: r.first_name === PHANTOM_NAME,
             };
         });
+    const humanStandings = playerStandings.filter(s => !s.isPhantom);
     const numHumans = humanStandings.length;
 
     // ── POT A — per-round Mejor del Día (net stroke score, lower = better) ─
@@ -222,7 +233,7 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
     const potA: PotADay[] = lb.rounds.map(round => {
         const dayPool = numHumans * DAILY_CONTRIB_PER_PLAYER.potA;
         const holesPerRound = round.holesPerRound ?? 18;
-        const standings: DayRow[] = humanStandings
+        const standings: DayRow[] = playerStandings
             .map(s => {
                 const br = s.byRound?.find(r => r.roundNumber === round.roundNumber);
                 const holes = br?.holes ?? [];
@@ -334,7 +345,7 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
     }
 
     const tripPool = numHumans * DAILY_CONTRIB_PER_PLAYER.potC * NUM_DAYS;
-    const cRows = humanStandings
+    const cRows = playerStandings
         .map(s => ({
             playerId: s.playerId,
             playerName: s.playerName,
@@ -390,7 +401,7 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
         potC.rankings.map(r => [r.playerId, r.projectedPayout]),
     );
 
-    const summaryRows: Omit<OverallStanding, 'rank'>[] = humanStandings.map(s => {
+    const summaryRows: Omit<OverallStanding, 'rank'>[] = playerStandings.map(s => {
         const a = dailyWinningsByPlayer.get(s.playerId) ?? 0;
         const b = potBShareByPlayer.get(s.playerId) ?? 0;
         const c = potCByPlayer.get(s.playerId) ?? 0;

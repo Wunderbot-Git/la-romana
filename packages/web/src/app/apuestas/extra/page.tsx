@@ -192,11 +192,10 @@ function MatchesTab({
     const round = leaderboard.rounds[selectedRoundIdx];
     if (!round) return <div className="font-fredoka text-white/55">Sin rondas.</div>;
 
-    const flightStarted = (flightId: string): boolean => {
-        const fs = round.flightSummaries.find((f: any) => f.flightId === flightId);
-        if (!fs) return false;
-        return fs.matches.some((m: any) => m.holesPlayed > 0);
-    };
+    // Bets stay OPEN at all times for La Romana — players can place / change a
+    // bet at any point during the round. Always returns false so the UI never
+    // shows the "Cerrado" badge or disables the bet form.
+    const flightStarted = (_flightId: string): boolean => false;
 
     return (
         <div className="space-y-3">
