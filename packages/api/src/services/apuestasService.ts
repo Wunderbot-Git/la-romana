@@ -69,7 +69,20 @@ function assignTiedPayouts<T>(
     }
     return out;
 }
-const PHANTOM_NAME = 'Fantasma';
+/**
+ * Detect the phantom slot. The roster is hand-typed by the organizer, so we
+ * tolerate variant spellings: case differences, surrounding whitespace,
+ * accents, and the German "Phantasma" / Spanish "Fantasma" forms.
+ */
+const isPhantomFirstName = (firstName: string | null | undefined): boolean => {
+    if (!firstName) return false;
+    const normalized = firstName
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '');
+    return normalized === 'fantasma' || normalized === 'phantasma';
+};
 
 export interface PotADayStanding {
     playerId: string;
@@ -214,7 +227,7 @@ export const getApuestasOverview = async (eventId: string): Promise<ApuestasOver
                 ryderIndividualCumulative: s?.ryderIndividualCumulative ?? 0,
                 roundsPlayed: s?.roundsPlayed ?? 0,
                 byRound: s?.byRound,
-                isPhantom: r.first_name === PHANTOM_NAME,
+                isPhantom: isPhantomFirstName(r.first_name),
             };
         });
     const humanStandings = playerStandings.filter(s => !s.isPhantom);

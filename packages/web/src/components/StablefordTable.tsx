@@ -35,7 +35,10 @@ export function StablefordTable({ data, filter = 'total' }: { data: LeaderboardD
     // Total view: phantom included (basis for MVP / Worst Player wagers).
     // Day view: phantom excluded (Mejor del Día is a money ranking).
     const allStandings = data.stablefordStandings;
-    const isPhantom = (name: string) => name.trim().toLowerCase().startsWith('fantasma');
+    const isPhantom = (name: string) => {
+        const n = name.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        return n.startsWith('fantasma') || n.startsWith('phantasma');
+    };
 
     const standings = isDayFilter
         ? allStandings
