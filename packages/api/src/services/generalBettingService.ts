@@ -151,7 +151,20 @@ const resolveFromLeaderboard = (lb: LeaderboardData): Resolution[] => {
     const blue = lb.ryderStandings.find(s => s.team === 'blue');
     const redPts = red?.matchPointsCumulative ?? 0;
     const bluePts = blue?.matchPointsCumulative ?? 0;
-    const allRoundsCompleted = lb.rounds.length > 0 && lb.rounds.every(r => r.state === 'completed');
+    // A round counts as "done" for resolution either when the organizer has
+    // explicitly marked it completed in the admin UI, or when every match in
+    // every flight has reached `isComplete` (decided or 18 holes scored).
+    // Without this fallback, general bets would stay open after the tournament
+    // ends until someone clicks "Complete round" — which would leave them out
+    // of the settlement transfers entirely.
+    const allRoundsCompleted =
+        lb.rounds.length > 0 &&
+        lb.rounds.every(
+            r =>
+                r.state === 'completed' ||
+                (r.flightSummaries.length > 0 &&
+                    r.flightSummaries.every(f => f.matches.length > 0 && f.matches.every(m => m.isComplete))),
+        );
     const winThreshold = TOTAL_RYDER_POINTS / 2 + 0.5;
 
     // ── tournament_winner ──
