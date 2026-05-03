@@ -273,6 +273,43 @@ export const getGeneralBetPools = async (eventId: string): Promise<GeneralBetPoo
     return pools;
 };
 
+export interface GeneralBetEnriched {
+    id: string;
+    bettorId: string;
+    betType: GeneralBetType;
+    pickedOutcome: string;
+    amount: number;
+    status: 'open' | 'closed';
+    /** Net payout received once the bet settled (0 if lost / unresolved). */
+    realizedPayout: number;
+    /** Projected payout if the bet's pick wins, given the current pool. */
+    potentialPayout: number;
+    /** Winning outcome (playerId for mvp/worst, 'red'|'blue' for tournament_winner, '20-16' for exact_score), null until resolved. */
+    winningOutcome: string | null;
+    /** Display label for the picked outcome (player name / team name / raw score). */
+    pickedLabel: string;
+    /** Display label for the winning outcome, null until resolved. */
+    winningLabel: string | null;
+}
+
+const labelForOutcome = (
+    betType: GeneralBetType,
+    outcome: string | null,
+    nameById: Map<string, string>,
+): string | null => {
+    if (outcome === null) return null;
+    if (betType === 'tournament_winner') {
+        if (outcome === 'red') return 'Piratas';
+        if (outcome === 'blue') return 'Fantasmas';
+        if (outcome === 'tie') return 'Empate';
+        return outcome;
+    }
+    if (betType === 'mvp' || betType === 'worst_player') {
+        return nameById.get(outcome) ?? 'Jugador';
+    }
+    return outcome;
+};
+
 export const getGeneralBetSettlement = async (eventId: string): Promise<{
     isPartial: boolean;
     balances: Record<string, number>;
@@ -280,10 +317,15 @@ export const getGeneralBetSettlement = async (eventId: string): Promise<{
     closedWagered: Record<string, number>;
     closedRecovered: Record<string, number>;
     openPotential: Record<string, number>;
+    playerGeneralBets: Record<string, GeneralBetEnriched[]>;
 }> => {
     const allBets = await getGeneralBetsForEvent(eventId);
     const lb = await getLeaderboard(eventId);
     const resolutions = resolveFromLeaderboard(lb);
+
+    // Build playerId → name lookup for label resolution (mvp / worst_player picks).
+    const nameById = new Map<string, string>();
+    for (const s of lb.stablefordStandings) nameById.set(s.playerId, s.playerName);
 
     let isPartial = false;
     const balances: Record<string, number> = {};
@@ -291,6 +333,7 @@ export const getGeneralBetSettlement = async (eventId: string): Promise<{
     const closedWagered: Record<string, number> = {};
     const closedRecovered: Record<string, number> = {};
     const openPotential: Record<string, number> = {};
+    const playerGeneralBets: Record<string, GeneralBetEnriched[]> = {};
 
     const ensure = (id: string) => {
         if (balances[id] === undefined) balances[id] = 0;
@@ -298,6 +341,7 @@ export const getGeneralBetSettlement = async (eventId: string): Promise<{
         if (closedWagered[id] === undefined) closedWagered[id] = 0;
         if (closedRecovered[id] === undefined) closedRecovered[id] = 0;
         if (openPotential[id] === undefined) openPotential[id] = 0;
+        if (!playerGeneralBets[id]) playerGeneralBets[id] = [];
     };
 
     // Group bets by type
@@ -320,6 +364,20 @@ export const getGeneralBetSettlement = async (eventId: string): Promise<{
         for (const bet of bets) {
             ensure(bet.bettorId);
 
+            const enriched: GeneralBetEnriched = {
+                id: bet.id,
+                bettorId: bet.bettorId,
+                betType: bet.betType,
+                pickedOutcome: bet.pickedOutcome,
+                amount: bet.amount,
+                status: resolution?.isResolved ? 'closed' : 'open',
+                realizedPayout: 0,
+                potentialPayout: 0,
+                winningOutcome: resolution?.winningOutcome ?? null,
+                pickedLabel: labelForOutcome(bet.betType, bet.pickedOutcome, nameById) ?? bet.pickedOutcome,
+                winningLabel: labelForOutcome(bet.betType, resolution?.winningOutcome ?? null, nameById),
+            };
+
             if (resolution?.isResolved) {
                 closedWagered[bet.bettorId] += bet.amount;
                 balances[bet.bettorId] -= bet.amount;
@@ -327,18 +385,27 @@ export const getGeneralBetSettlement = async (eventId: string): Promise<{
                 if (numWinners === 0) {
                     balances[bet.bettorId] += bet.amount;
                     closedRecovered[bet.bettorId] += bet.amount;
+                    enriched.realizedPayout = bet.amount;
                 } else if (bet.pickedOutcome === resolution.winningOutcome) {
                     const payout = pot / numWinners;
                     balances[bet.bettorId] += payout;
                     closedRecovered[bet.bettorId] += payout;
+                    enriched.realizedPayout = payout;
                 }
+                enriched.potentialPayout = enriched.realizedPayout;
             } else {
                 openWagered[bet.bettorId] += bet.amount;
                 const sameSide = bets.filter(b => b.pickedOutcome === bet.pickedOutcome).length;
-                if (sameSide > 0) openPotential[bet.bettorId] += pot / sameSide;
+                if (sameSide > 0) {
+                    const projected = pot / sameSide;
+                    openPotential[bet.bettorId] += projected;
+                    enriched.potentialPayout = projected;
+                }
             }
+
+            playerGeneralBets[bet.bettorId].push(enriched);
         }
     }
 
-    return { isPartial, balances, openWagered, closedWagered, closedRecovered, openPotential };
+    return { isPartial, balances, openWagered, closedWagered, closedRecovered, openPotential, playerGeneralBets };
 };
