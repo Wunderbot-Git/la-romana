@@ -53,15 +53,31 @@ export interface SettlementTransfer {
     amount: number;
 }
 
+export type GeneralBetType = 'tournament_winner' | 'exact_score' | 'mvp' | 'worst_player';
+
+export interface GeneralBetEnriched {
+    id: string;
+    bettorId: string;
+    betType: GeneralBetType;
+    pickedOutcome: string;
+    amount: number;
+    status: 'open' | 'closed';
+    realizedPayout: number;
+    potentialPayout: number;
+    winningOutcome: string | null;
+    pickedLabel: string;
+    winningLabel: string | null;
+}
+
 export interface SettlementData {
     isPartial: boolean;
     balances: SettlementBalance[];
     transfers: SettlementTransfer[];
-    /** Per-player enriched bets for the Predicciones standings drilldown. */
+    /** Per-player enriched match bets for the Predicciones standings drilldown. */
     playerBets?: Record<string, Bet[]>;
+    /** Per-player enriched general bets (mvp / worst / tournament_winner / exact_score). */
+    playerGeneralBets?: Record<string, GeneralBetEnriched[]>;
 }
-
-export type GeneralBetType = 'tournament_winner' | 'exact_score' | 'mvp' | 'worst_player';
 
 export interface GeneralBetPool {
     betType: GeneralBetType;

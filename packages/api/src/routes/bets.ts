@@ -82,6 +82,7 @@ export const betRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
                 return reply.send({
                     ...rest,
                     playerBets: personalStats?.playerBets ?? {},
+                    playerGeneralBets: personalStats?.playerGeneralBets ?? {},
                 });
             } catch (err: any) {
                 return reply.status(500).send({ error: err.message });

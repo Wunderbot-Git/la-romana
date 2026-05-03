@@ -22,7 +22,7 @@ import {
 } from '../repositories/betRepository';
 import { getUserGeneralBets } from '../repositories/generalBetRepository';
 import { getLeaderboard } from './leaderboardService';
-import { getGeneralBetSettlement } from './generalBettingService';
+import { getGeneralBetSettlement, GeneralBetEnriched } from './generalBettingService';
 
 /** Fixed bet amount for La Romana (USD). */
 export const BET_AMOUNT_USD = 2;
@@ -214,6 +214,8 @@ export interface SettlementData {
         playerClosedRecovered: Record<string, number>;
         playerOpenPotential: Record<string, number>;
         playerBets: Record<string, BetEnriched[]>;
+        /** Enriched general bets (mvp / worst / tournament_winner / exact_score) per bettor. */
+        playerGeneralBets: Record<string, GeneralBetEnriched[]>;
     };
 }
 
@@ -366,6 +368,7 @@ export const getTournamentSettlement = async (eventId: string): Promise<Settleme
             playerClosedRecovered,
             playerOpenPotential,
             playerBets,
+            playerGeneralBets: general.playerGeneralBets,
         },
     };
 };
